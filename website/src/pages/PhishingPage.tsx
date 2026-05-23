@@ -1,10 +1,10 @@
 import React, { useEffect } from 'react';
-import { Shield, Key, AlertCircle } from 'lucide-react';
+import { Shield } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const PhishingPage: React.FC = () => {
   useEffect(() => {
-    document.title = "RealHackers HQ // Phishing Coming Soon";
+    document.title = "RealHackers HQ // Phishing [Coming Soon]";
   }, []);
 
   return (
@@ -20,7 +20,7 @@ const PhishingPage: React.FC = () => {
            <h2 style={{ letterSpacing: '4px', marginBottom: '1rem' }}>COMING_SOON</h2>
            <p style={{ opacity: 0.5, lineHeight: '1.8' }}>
               Advanced social engineering templates and credential harvesting vaults are being integrated. 
-              Deployable links for Google, Facebook, and Discord are scheduled for the next system update.
+              The fake templates have been removed. This module will allow real link deployment in Phase 2.
            </p>
         </div>
       </motion.div>

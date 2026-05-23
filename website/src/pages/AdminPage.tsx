@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Settings, User, Shield, Lock, Eye, 
-  RefreshCcw, Save, Trash2, Database,
-  Layout, Palette, Globe, Mail
+  Shield, Save, Layout
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { toast } from 'sonner';
@@ -74,17 +72,6 @@ const AdminPage: React.FC = () => {
                   </button>
                </div>
             </motion.div>
-          )}
-
-          {activeTab === 'SECURITY' && (
-             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
-                <h3>ACCESS_CONTROL</h3>
-                <p style={{ opacity: 0.5, fontSize: '0.8rem', margin: '1rem 0 2rem' }}>Manage security keys and master tokens.</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                   <input type="password" placeholder="MASTER_HQ_KEY" style={{ background: '#000', border: '1px solid #333', padding: '1rem', color: '#fff' }} />
-                   <button className="btn"><RefreshCcw size={16} /> ROTATE_KEYS</button>
-                </div>
-             </motion.div>
           )}
 
           <div className="card" style={{ height: 'fit-content' }}>
