@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Monitor, Cpu, Zap } from 'lucide-react';
+import { Monitor, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const HDexPage: React.FC = () => {
