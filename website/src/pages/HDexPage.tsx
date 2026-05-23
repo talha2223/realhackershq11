@@ -5,7 +5,7 @@ import {
   Search, ShieldCheck, Database, 
   Eye, Lock,
   RefreshCcw,
-  MessageSquare, Volume2, Info,
+  MessageSquare, Info,
   Camera, Link as LinkIcon, Activity,
   Clipboard, Power
 } from 'lucide-react';
