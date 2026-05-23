@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
-  Monitor, Cpu, Activity, Terminal, 
+  Monitor, Terminal, 
   Search, ShieldCheck, Database, 
-  Eye, Download, Lock,
-  RefreshCcw, Settings, HardDrive, Network,
-  ChevronRight, X, User, Layout, FileText, Folder, Zap,
+  Eye, Lock,
+  RefreshCcw,
   MessageSquare, Volume2, Info
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -45,8 +44,6 @@ const HDexPage: React.FC = () => {
 
   const accentColor = '#3498db'; // PC Blue Accent
 
-  // Settings
-  const [showSettings, setShowSettings] = useState(false);
   const backendUrl = localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space';
   const botToken = localStorage.getItem('adex_token') || 'talha-hq-secret-123';
 
@@ -84,7 +81,6 @@ const HDexPage: React.FC = () => {
         headers: { 'x-adex-bot-token': botToken }
       });
       const allDevices = response.data.devices || [];
-      // Filter for PC devices (identifying with -PC in appVersion)
       const pcNodes = allDevices.filter((d: any) => 
         d.app_version?.includes('PC') || d.id.startsWith('PC-')
       );
@@ -216,7 +212,7 @@ const HDexPage: React.FC = () => {
                 <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #111' }}>
                   {['SYSTEM', 'TELEMETRY', 'FILES', 'LOGS'].map((tab: any) => (
                     <button 
-                      key={tab} onClick={() => setActiveTab(tab)}
+                      key={tab} onClick={() => setActiveTab(tab as any)}
                       className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
                       style={{ color: activeTab === tab ? accentColor : '#444', borderBottomColor: activeTab === tab ? accentColor : 'transparent' }}
                     >
@@ -236,20 +232,13 @@ const HDexPage: React.FC = () => {
                            <ModuleButton icon={Lock} label="FORCE_LOCK" onClick={() => sendCommand('lock')} danger />
                         </motion.div>
                       )}
-                      
-                      {activeTab === 'TELEMETRY' && (
-                        <div style={{ textAlign: 'center', marginTop: '8rem', opacity: 0.2 }}>
-                           <Activity size={48} color={accentColor} style={{ margin: '0 auto 1rem' }} />
-                           <p style={{ fontSize: '0.7rem', letterSpacing: '4px' }}>WAITING_FOR_SENSORS...</p>
-                        </div>
-                      )}
                    </AnimatePresence>
                 </div>
              </>
            ) : (
              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', opacity: 0.05 }}>
                 <Monitor size={150} color={accentColor} />
-                <h2 style={{ marginTop: '2rem', letterSpacing: '15px' }}>GRID_OFFLINE</h2>
+                <h2 style={{ marginTop: '2rem', letterSpacing: '15px', fontWeight: '900' }}>GRID_OFFLINE</h2>
              </div>
            )}
         </div>

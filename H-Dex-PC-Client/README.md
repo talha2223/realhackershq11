@@ -29,3 +29,7 @@ A Python-based system monitor client that connects to the Real Hackers HQ Comman
 
 ## Removal
 Simply close the terminal or press `Ctrl+C`. No files are modified outside of this directory.
+
+#sealth spyware like adex
+need imprvent init
+fix it
