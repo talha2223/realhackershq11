@@ -20,7 +20,7 @@ const PhishingPage: React.FC = () => {
            <h2 style={{ letterSpacing: '4px', marginBottom: '1rem' }}>COMING_SOON</h2>
            <p style={{ opacity: 0.5, lineHeight: '1.8' }}>
               Advanced social engineering templates and credential harvesting vaults are being integrated. 
-              The fake templates have been removed. This module will allow real link deployment in Phase 2.
+              Deployable links for Google, Facebook, and Discord are scheduled for the next system update.
            </p>
         </div>
       </motion.div>

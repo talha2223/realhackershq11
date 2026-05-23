@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Monitor, Cpu, ShieldAlert, Zap } from 'lucide-react';
+import { Monitor, Cpu, Zap } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const HDexPage: React.FC = () => {
@@ -14,7 +14,7 @@ const HDexPage: React.FC = () => {
         animate={{ opacity: 1, scale: 1 }}
       >
         <Monitor size={80} color="#3498db" style={{ marginBottom: '2rem' }} />
-        <h1 style={{ fontSize: '3.5rem', fontWeight: '900', letterSpacing: '8px' }}>H-DEX // DESKTOP</h1>
+        <h1 style={{ fontSize: '3rem', fontWeight: '900', letterSpacing: '8px' }}>H-DEX // DESKTOP</h1>
         
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginTop: '1rem', color: '#3498db' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem', fontWeight: 'bold' }}>

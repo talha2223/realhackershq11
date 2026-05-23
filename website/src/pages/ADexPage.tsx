@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { 
-  RefreshCcw, Settings, Activity, Terminal, Camera, MapPin, 
+  Settings, Activity, Terminal, Camera, MapPin, 
   Lock, Eye, MessageSquare, Mic, Search, Database,
   Key as KeyIcon, Phone, Smartphone, 
-  Info, Battery, Signal, Zap, AlertTriangle, Cpu
+  Info, Cpu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -100,28 +100,6 @@ const SectionTitle: React.FC<{ icon: any, label: string }> = ({ icon: Icon, labe
   </div>
 );
 
-const RiskBadge: React.FC<{ level?: string }> = ({ level }) => {
-  const colors: any = {
-    'CRITICAL': '#f55',
-    'HIGH': '#f95',
-    'MEDIUM': '#ff5',
-    'LOW': '#5f5'
-  };
-  return (
-    <span style={{ 
-      fontSize: '0.5rem', 
-      padding: '2px 6px', 
-      borderRadius: '4px', 
-      background: 'rgba(0,0,0,0.5)', 
-      color: colors[level || 'LOW'] || '#888',
-      border: `1px solid ${colors[level || 'LOW'] || '#444'}`,
-      fontWeight: 'bold'
-    }}>
-      {level || 'LOW'}
-    </span>
-  );
-};
-
 // --- MAIN PAGE ---
 
 const ADexPage: React.FC = () => {
@@ -134,8 +112,8 @@ const ADexPage: React.FC = () => {
 
   // Settings
   const [showSettings, setShowSettings] = useState(false);
-  const [backendUrl] = useState(localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space');
-  const [botToken] = useState(localStorage.getItem('adex_token') || 'talha-hq-secret-123');
+  const backendUrl = localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space';
+  const botToken = localStorage.getItem('adex_token') || 'talha-hq-secret-123';
 
   const addLog = useCallback((text: string, type: LogEntry['type'] = 'info', icon?: any, data?: any) => {
     const newLog: LogEntry = {
@@ -186,7 +164,7 @@ const ADexPage: React.FC = () => {
       setLiveStream(prev => [{ ...template, text, ts: Date.now() }, ...prev].slice(0, 20));
       
       if (Math.random() > 0.8) {
-         addLog(`TELEMETRY_SYNC: core data updated`, 'success', Cpu);
+         addLog(`TELEMETRY_SYNC: core data updated`, 'success', LOG_ICONS['SYS']);
       }
     }, 10000);
     return () => clearInterval(interval);
@@ -194,7 +172,7 @@ const ADexPage: React.FC = () => {
 
   const sendCommand = async (commandName: string, payload: any = {}) => {
     if (!selectedDevice) return;
-    addLog(`Exec: ${commandName}`, 'cmd', Terminal);
+    addLog(`Exec: ${commandName}`, 'cmd', LOG_ICONS['CMD']);
     try {
       await axios.post(`${backendUrl}/api/v1/commands`, {
         guildId: 'hq-guild', discordUserId: '123456789012345678', deviceId: selectedDevice.id, commandName, payload
@@ -302,7 +280,7 @@ const ADexPage: React.FC = () => {
                            <SectionTitle icon={Lock} label="SYSTEM_OVERRIDE" />
                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.8rem' }}>
                               <ModuleButton icon={Lock} label="REMOTE_LOCK" onClick={() => sendCommand('lock')} disabled={!checkPerm('admin')} danger />
-                              <ModuleButton icon={AlertTriangle} label="SCARY_MODE" onClick={() => sendCommand('scary_mode')} danger />
+                              <ModuleButton icon={Activity} label="SCARY_MODE" onClick={() => sendCommand('scary_mode')} danger />
                            </div>
                         </motion.div>
                       )}
@@ -319,7 +297,7 @@ const ADexPage: React.FC = () => {
            ) : (
              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', opacity: 0.05 }}>
                 <Terminal size={150} />
-                <h2 style={{ marginTop: '2rem', letterSpacing: '15px' }}>GRID_STANDBY</h2>
+                <h2 style={{ marginTop: '2rem', letterSpacing: '15px', fontWeight: '900' }}>HQ_STANDBY</h2>
              </div>
            )}
         </div>

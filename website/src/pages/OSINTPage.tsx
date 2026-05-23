@@ -17,7 +17,7 @@ const OSINTPage: React.FC = () => {
            <h2 style={{ letterSpacing: '4px', marginBottom: '1rem' }}>COMING_SOON</h2>
            <p style={{ opacity: 0.5, lineHeight: '1.8' }}>
               Our Open Source Intelligence suite is under development. 
-              Real-world email finder and username mapping tools will be enabled shortly.
+              Email finder, username search, and social media mapping tools will be enabled shortly.
            </p>
         </div>
       </motion.div>
