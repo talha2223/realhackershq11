@@ -6,8 +6,7 @@ import {
   Eye, Lock,
   RefreshCcw,
   MessageSquare, Volume2, Info,
-  Cpu, HardDrive, FileText, Folder, Zap,
-  Download, ChevronRight, X, AlertTriangle,
+  Camera, Link as LinkIcon, Activity,
   Clipboard, Power
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,7 +39,7 @@ interface LogEntry {
 const HDexPage: React.FC = () => {
   const [nodes, setNodes] = useState<PCNode[]>([]);
   const [selectedNode, setSelectedNode] = useState<PCNode | null>(null);
-  const [activeTab, setActiveTab] = useState<'SYSTEM' | 'TELEMETRY' | 'FILES' | 'LOGS'>('SYSTEM');
+  const [activeTab, setActiveTab] = useState<'SYSTEM' | 'TELEMETRY' | 'LOGS'>('SYSTEM');
   const [searchQuery, setSearchQuery] = useState('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -226,7 +225,7 @@ const HDexPage: React.FC = () => {
            {selectedNode ? (
              <>
                 <div style={{ display: 'flex', gap: '10px', background: '#0a0a0a', padding: '5px', borderRadius: '4px' }}>
-                  {['SYSTEM', 'TELEMETRY', 'FILES', 'LOGS'].map((tab: any) => (
+                  {['SYSTEM', 'TELEMETRY', 'LOGS'].map((tab: any) => (
                     <button 
                       key={tab} onClick={() => setActiveTab(tab as any)}
                       className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
