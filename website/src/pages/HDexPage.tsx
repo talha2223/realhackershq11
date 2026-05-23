@@ -20,7 +20,7 @@ interface PCNode {
   lastSeen?: number;
   metadata?: {
     permissions?: Record<string, boolean>;
-    androidVersion?: string; # Field used for OS name on PC
+    androidVersion?: string; // Field used for OS name on PC
     appVersion?: string;
     cpu?: number;
     ram?: number;
