@@ -1,35 +1,39 @@
-# H-Dex Transparent PC Monitor
+# H-Dex Transparent PC Monitor (Pro)
 
 A Python-based system monitor client that connects to the Real Hackers HQ Command Center.
 
-## Features
-- **Real-time Telemetry:** Reports CPU and RAM usage every 5 seconds.
-- **Remote Commands:** Supports `message`, `beep`, and `info` commands from the web dashboard.
-- **Transparent & Removable:** Logs all actions to the console and can be stopped with `Ctrl+C`.
+## 🔥 New Features
+- **Advanced Telemetry:** Reports CPU, RAM, Disk Usage, Battery Status, and Uptime.
+- **Stealth & Persistence:** Caches `deviceToken` to avoid re-pairing after restart.
+- **Remote Commands:** 
+  - `shell`: Run invisible shell commands and get output back.
+  - `screenshot`: Capture the remote machine's screen invisibly.
+  - `clipboard`: Read or write to the PC's clipboard.
+  - `lock`: Instantly lock the workstation.
+  - `open_url`: Open a link in the default browser.
+  - `message`: Display a native Windows alert popup.
+  - `ls`/`dir`: Browse computer files.
+  - `shutdown`: Trigger remote shutdown.
 
-## Setup
+## 🛠️ Setup
 
 1.  **Install Python 3.8+**
 2.  **Install Dependencies:**
     ```bash
-    pip install psutil requests websockets
+    pip install -r requirements.txt
     ```
-3.  **Configure:**
-    Open `client.py` and ensure `BASE_URL` and `WS_URL` point to your Hugging Face Space.
-4.  **Run:**
+3.  **Run with Python (Console mode):**
     ```bash
     python client.py
     ```
+    **Run Hidden (Stealth mode - Windows):**
+    ```bash
+    pythonw client.py
+    ```
+    *(To stop it in stealth mode, kill it via Task Manager)*
 
 ## How it works
-1.  **Handshake:** The client sends a POST request to `/api/v1/pairing/code` to register and get a `deviceToken`.
-2.  **Command Channel:** It opens a WebSocket connection to `/ws` and identifies itself using `device.hello`.
-3.  **Telemetry:** It uses `psutil` to collect system stats and sends them via `device.event`.
-4.  **Commands:** It listens for `server.command` messages and sends back `device.result` after execution.
-
-## Removal
-Simply close the terminal or press `Ctrl+C`. No files are modified outside of this directory.
-
-#sealth spyware like adex
-need imprvent init
-fix it
+1.  **Handshake:** The client connects to `/api/v1/pairing/code` to get a `deviceToken`.
+2.  **Persistence:** The token is saved to `.device_token` locally so it stays paired.
+3.  **Telemetry:** Collects stats using `psutil` and streams them over WSS.
+4.  **Commands:** Listens to WebSocket messages and hooks into OS-level APIs (`ctypes`, `subprocess`, `mss`) to execute commands securely.

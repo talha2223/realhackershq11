@@ -1,0 +1,6 @@
+psutil
+requests
+websockets
+mss
+pyperclip
+pillow
