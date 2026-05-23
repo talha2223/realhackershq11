@@ -14,22 +14,23 @@ export const LoadingProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    // Faster, more realistic progress
+    // Ultra-fast transition
     const interval = setInterval(() => {
       setProgress((prev) => {
-        if (prev < 95) return prev + Math.random() * 15;
+        if (prev < 98) return prev + Math.random() * 25;
         if (videoLoaded) return 100;
         return prev;
       });
-    }, 100);
+    }, 50);
 
     return () => clearInterval(interval);
   }, [videoLoaded]);
 
   useEffect(() => {
     if (progress >= 100) {
-      // Immediate load once ready
-      setIsLoaded(true);
+      // Near-instant load
+      const timer = setTimeout(() => setIsLoaded(true), 100);
+      return () => clearTimeout(timer);
     }
   }, [progress]);
 

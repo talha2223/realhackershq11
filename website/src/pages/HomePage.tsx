@@ -11,11 +11,11 @@ const HomePage: React.FC = () => {
   const [stats, setStats] = useState([
     { label: 'CORES_ACTIVE', value: '0', icon: Smartphone, color: '#e74c3c' },
     { label: 'UPLINK_STATUS', value: 'READY', icon: Activity, color: '#f1c40f' },
-    { label: 'DATA_EXTRACTED', value: '0MB', icon: Zap, color: '#3498db' }
+    { label: 'DATA_EXTRACTED', value: 'SECURE', icon: Zap, color: '#3498db' }
   ]);
 
   useEffect(() => {
-    document.title = "RealHackers HQ // Home";
+    document.title = "RealHackers HQ // Command Center";
     const backendUrl = localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space';
     const botToken = localStorage.getItem('adex_token') || 'talha-hq-secret-123';
 
@@ -28,8 +28,8 @@ const HomePage: React.FC = () => {
         const devices = response.data.devices || [];
         setStats([
           { label: 'CORES_ACTIVE', value: devices.length.toString(), icon: Smartphone, color: '#e74c3c' },
-          { label: 'UPLINK_STATUS', value: 'SECURE', icon: Activity, color: '#2ecc71' },
-          { label: 'DATA_EXTRACTED', value: 'REALTIME', icon: Zap, color: '#3498db' }
+          { label: 'UPLINK_STATUS', value: 'CONNECTED', icon: Activity, color: '#2ecc71' },
+          { label: 'DATA_EXTRACTED', value: '100% REAL', icon: Zap, color: '#3498db' }
         ]);
       } catch (err) {}
     };
