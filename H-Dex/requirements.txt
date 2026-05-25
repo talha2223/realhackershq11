@@ -1,0 +1,62 @@
+# H-Dex Complete Requirements
+# Core dependencies for server and client
+
+# WebSocket and networking
+websockets>=11.0.3
+certifi>=2023.7.22
+tls-client>=0.2.0
+urllib3>=2.0.4
+charset-normalizer>=3.2.0
+idna>=3.4
+
+# HTTP requests
+requests>=2.31.0
+
+# System monitoring and control
+psutil>=5.9.5
+
+# GUI and dashboard
+customtkinter>=5.2.0
+tkinter-tooltip>=2.0
+matplotlib>=3.7.2
+flet>=0.10.0
+
+# Image processing
+pillow>=10.0.0
+mss>=9.0.1
+opencv-python>=4.8.0.76
+
+# Input automation
+pyautogui>=0.9.54
+pynput>=1.7.6
+keyboard>=0.13.5
+mouse>=0.7.1
+pygetwindow>=0.0.9
+pyperclip>=1.8.2
+
+# Audio processing
+sounddevice>=0.4.6
+numpy>=1.24.3
+
+# Windows specific (optional, will be ignored on other platforms)
+pywin32>=306; sys_platform == 'win32'
+pywin32-ctypes>=0.2.2; sys_platform == 'win32'
+python-registry>=1.0.1; sys_platform == 'win32'
+
+# Build tools
+pyinstaller>=5.13.0
+pyinstaller-hooks-contrib>=2023.6
+
+# Additional utilities
+colorama>=0.4.6
+six>=1.16.0
+python-dateutil>=2.8.2
+cffi>=1.15.1
+pycparser>=2.21
+
+# For better async support
+aiofiles>=23.2.1
+asyncio-throttle>=1.0.2
+
+# Encryption and security (optional)
+cryptography>=41.0.3

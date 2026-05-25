@@ -1,0 +1,24 @@
+{
+    "theme": "Cyberpunk",
+    "server_uri": "wss://realmrhacker-h-dex.hf.space/ws",
+    "password_hash": "2136b13a3a0e1686cbe76260d7e64d1d203ad25058738c5c2f95a1bdef48ec5b",
+    "salt": "abca039c78f1246df07558e106475970",
+    "server_links": [
+        {
+            "name": "Hugging Face (Primary)",
+            "url": "wss://realmrhacker-h-dex.hf.space/ws",
+            "status": "Unknown"
+        },
+        {
+            "name": "Backup 1",
+            "url": "wss://backup1.hdex.network",
+            "status": "Unknown"
+        },
+        {
+            "name": "Local Test",
+            "url": "ws://localhost:8080",
+            "status": "Unknown"
+        }
+    ],
+    "custom_accent": "#facc19"
+}

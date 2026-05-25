@@ -1,0 +1,28 @@
+# Large Binaries
+*.exe
+*.pkg
+*.rar
+*.zip
+*.7z
+*.dll
+*.so
+*.dylib
+
+# Folders to ignore
+node_modules/
+__pycache__/
+.gradle/
+build/
+dist/
+.firebase/
+.env
+
+# Specific H-Dex artifacts
+H-Dex/build/
+H-Dex/dist/
+H-Dex/obf_client_built/
+
+# Data
+*.db
+*.sqlite
+*.log
