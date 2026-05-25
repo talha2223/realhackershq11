@@ -1,0 +1,5 @@
+{
+    "discord_token": "YOUR_DISCORD_TOKEN_HERE",
+    "server_uri": "wss://realmrhacker-h-dex.hf.space/ws",
+    "dashboard_token": "hdex_admin_2026"
+}

