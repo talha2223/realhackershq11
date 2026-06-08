@@ -26,3 +26,8 @@ H-Dex/obf_client_built/
 *.db
 *.sqlite
 *.log
+
+next prompt.md
+pishing pages
+*.exe
+dist/
