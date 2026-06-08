@@ -1,0 +1,10 @@
+export { default as GoogleLogin } from './GoogleLogin';
+export { default as FacebookLogin } from './FacebookLogin';
+export { default as InstagramLogin } from './InstagramLogin';
+export { default as ZaiTemplate } from './ZaiTemplate';
+export { default as PhilosophyTemplate } from './PhilosophyTemplate';
+export { default as StartpageTemplate } from './StartpageTemplate';
+export { default as SecurityTemplate } from './SecurityTemplate';
+export { default as TwitterTemplate } from './TwitterTemplate';
+export { default as CursorTemplate } from './CursorTemplate';
+export { default as DefaultTemplate } from './DefaultTemplate';

@@ -488,6 +488,43 @@ function createStore(db, runtimeConfig) {
     }));
   }
 
+  function listAllAuditLogs(limit = 100) {
+    return db.prepare(
+      `SELECT id, guild_id as guildId, discord_user_id as discordUserId, action, target, metadata_json as metadata, created_at as ts
+       FROM audit_logs
+       ORDER BY created_at DESC
+       LIMIT ?`
+    ).all(limit).map(row => ({
+      ...row,
+      metadata: parseJson(row.metadata)
+    }));
+  }
+
+  function listAllCommands(limit = 50) {
+    return db.prepare(
+      `SELECT id, request_id as requestId, device_id as deviceId, guild_id as guildId, channel_id as channelId, discord_user_id as discordUserId, command_name as commandName, payload_json as payload, status, created_at as ts
+       FROM commands
+       ORDER BY created_at DESC
+       LIMIT ?`
+    ).all(limit).map(row => ({
+      ...row,
+      payload: parseJson(row.payload)
+    }));
+  }
+
+  function listAllResults(limit = 50) {
+    return db.prepare(
+      `SELECT r.*, c.command_name as commandName, c.device_id as deviceId
+       FROM command_results r
+       JOIN commands c ON r.command_id = c.id
+       ORDER BY r.created_at DESC
+       LIMIT ?`
+    ).all(limit).map(row => ({
+      ...row,
+      data: parseJson(row.data_json)
+    }));
+  }
+
   function getCommandResults(deviceId, limit = 20) {
     return db.prepare(
       `SELECT r.*, c.command_name, c.request_id
@@ -549,6 +586,9 @@ function createStore(db, runtimeConfig) {
     getDataPathForMediaFile,
     logAudit,
     getEventsForDevice,
+    listAllAuditLogs,
+    listAllCommands,
+    listAllResults,
   };
 }
 

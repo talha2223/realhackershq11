@@ -102,8 +102,8 @@ const ADexPage: React.FC = () => {
 
   // Settings
   const [showSettings, setShowSettings] = useState(false);
-  const backendUrl = localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space';
-  const botToken = localStorage.getItem('adex_token') || 'talha-hq-secret-123';
+  const [backendUrl, setBackendUrl] = useState(localStorage.getItem('adex_url') || import.meta.env.VITE_ADEX_URL || 'https://talhasss-adex-backend.hf.space');
+  const [botToken, setBotToken] = useState(localStorage.getItem('adex_token') || import.meta.env.VITE_ADEX_TOKEN || 'talha-hq-secret-123');
 
   const addLog = useCallback((text: string, type: LogEntry['type'] = 'info', icon?: any, data?: any) => {
     const newLog: LogEntry = {
@@ -203,10 +203,16 @@ const ADexPage: React.FC = () => {
       {showSettings && (
          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', background: 'rgba(0,0,0,0.9)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div className="card" style={{ width: '500px', padding: '2rem', border: '1px solid #fff' }}>
-               <SectionTitle icon={Settings} label="UPLINK_SETTINGS" />
-               <input readOnly type="text" value={backendUrl} placeholder="BACKEND_URL" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '1rem' }} />
-               <input readOnly type="password" value={botToken} placeholder="AUTH_TOKEN" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff', marginBottom: '2rem' }} />
-               <button onClick={() => setShowSettings(false)} className="btn" style={{ width: '100%' }}>CLOSE</button>
+               <SectionTitle icon={Settings} label="A-DEX_UPLINK_CONFIG" />
+               <div style={{ marginBottom: '1.5rem' }}>
+                  <label style={{ fontSize: '0.6rem', color: '#444', display: 'block', marginBottom: '0.5rem' }}>UPLINK_URL</label>
+                  <input type="text" value={backendUrl} onChange={e => setBackendUrl(e.target.value)} placeholder="https://..." style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff' }} />
+               </div>
+               <div style={{ marginBottom: '2rem' }}>
+                  <label style={{ fontSize: '0.6rem', color: '#444', display: 'block', marginBottom: '0.5rem' }}>ACCESS_TOKEN</label>
+                  <input type="password" value={botToken} onChange={e => setBotToken(e.target.value)} placeholder="AUTH_SECRET" style={{ width: '100%', padding: '1rem', background: '#000', border: '1px solid #222', color: '#fff' }} />
+               </div>
+               <button onClick={() => { localStorage.setItem('adex_url', backendUrl); localStorage.setItem('adex_token', botToken); setShowSettings(false); fetchDevices(); }} className="btn" style={{ width: '100%' }}>SAVE_AND_LINK</button>
             </div>
          </div>
       )}

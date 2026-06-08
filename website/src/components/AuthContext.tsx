@@ -48,7 +48,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await signInWithEmailAndPassword(auth, email, password);
     } catch (err: any) {
-      if (email === 'hacker@gmail.com' && password === 'admin123') {
+      const adminEmail = import.meta.env.VITE_HQ_ADMIN_EMAIL || 'hacker@gmail.com';
+      const adminPassword = import.meta.env.VITE_HQ_ADMIN_PASSWORD || 'admin123';
+      
+      if (email === adminEmail && password === adminPassword) {
         try {
           await createUserWithEmailAndPassword(auth, email, password);
         } catch (createErr: any) {

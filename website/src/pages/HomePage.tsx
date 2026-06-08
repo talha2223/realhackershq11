@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Shield, Monitor, Smartphone, Terminal, Users, 
-  Activity, Zap, Globe, ChevronRight 
+import {
+  Shield, Monitor, Smartphone, Terminal, Users,
+  Activity, Zap, Globe, ChevronRight, Hexagon, HardDrive
 } from 'lucide-react';
 import TypingText from '../components/TypingText';
 import { motion } from 'framer-motion';
@@ -16,8 +16,8 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     document.title = "RealHackers HQ // Command Center";
-    const backendUrl = localStorage.getItem('adex_url') || 'https://talhasss-adex-backend.hf.space';
-    const botToken = localStorage.getItem('adex_token') || 'talha-hq-secret-123';
+    const backendUrl = localStorage.getItem('adex_url') || import.meta.env.VITE_ADEX_URL || 'https://talhasss-adex-backend.hf.space';
+    const botToken = localStorage.getItem('adex_token') || import.meta.env.VITE_ADEX_TOKEN || 'talha-hq-secret-123';
 
     const fetchStats = async () => {
       try {
@@ -39,7 +39,9 @@ const HomePage: React.FC = () => {
 
   const tools = [
     { id: 'a-dex', icon: Smartphone, title: 'A-Dex', desc: 'Mobile Intelligence & Stealth Surveillance Engine.', link: '/a-dex', status: 'online' },
-    { id: 'h-dex', icon: Monitor, title: 'H-Dex', desc: 'PC Persistence & Advanced Keystroke Logging.', link: '/h-dex', status: 'pending' },
+    { id: 'h-dex', icon: Monitor, title: 'H-Dex', desc: 'PC Persistence & Advanced Keystroke Logging.', link: '/h-dex', status: 'online' },
+    { id: 'hex', icon: Hexagon, title: 'Hex App', desc: 'Payload Builder & Connector Hub.', link: '/hex', status: 'online' },
+    { id: 'files', icon: HardDrive, title: 'File Manager', desc: 'Remote File Explorer with Icon View.', link: '/files', status: 'online' },
     { id: 'esp32', icon: Terminal, title: 'ESP32 Phisher', desc: 'Hardware-based Wi-Fi Credential Harvester.', link: 'https://espwifiphisher.alexxdal.com/', status: 'online', external: true },
     { id: 'phish', icon: Shield, title: 'Phishing', desc: 'High-Conversion Social Engineering Templates.', link: '/phishing', status: 'pending' },
     { id: 'osint', icon: Users, title: 'OSINT', desc: 'Open Source Intelligence & Social Mapping.', link: '/osint', status: 'pending' },
@@ -72,6 +74,14 @@ const HomePage: React.FC = () => {
         <h1 style={{ fontSize: 'clamp(2.5rem, 8vw, 5rem)', fontWeight: '900', letterSpacing: '8px', marginBottom: '1rem' }}>
           <TypingText text="REAL HACKERS HQ" speed={100} />
         </h1>
+        <div style={{ marginBottom: '2rem' }}>
+          <TypingText 
+            text="THE ULTIMATE COMMAND CENTER // SECURE_UPLINK_ESTABLISHED" 
+            speed={30} 
+            delay={2000}
+            className="hero-subtitle"
+          />
+        </div>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', opacity: 0.5, fontSize: '0.8rem', fontWeight: 'bold' }}>
            <span><Globe size={12} /> GLOBAL_GRID_ACTIVE</span>
            <span><Shield size={12} /> AES_ENCRYPTION_ENABLED</span>

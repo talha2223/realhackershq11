@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import BackgroundVideo from '../components/BackgroundVideo';
 import LoadingScreen from '../components/LoadingScreen';
 import { LoadingProvider } from '../components/LoadingContext';
@@ -32,9 +32,20 @@ const MainLayout: React.FC = () => {
     playSound('alert');
     setIsTerminating(true);
     setTimeout(async () => {
+      // Clear sensitive session data
+      localStorage.removeItem('adex_token');
+      localStorage.removeItem('hdex_token');
+      localStorage.removeItem('adex_url');
+      localStorage.removeItem('hdex_url');
+      sessionStorage.clear();
+      
       await logout();
       setIsTerminating(false);
       navigate('/');
+      toast.info('SESSION_TERMINATED', {
+        description: 'All local session keys have been purged.',
+        style: { background: '#000', color: '#fff', border: '1px solid #222' }
+      });
     }, 2500);
   };
 
@@ -105,14 +116,15 @@ const MainLayout: React.FC = () => {
                 { path: '/about', label: 'About' },
                 { path: '/contact', label: 'Contact' },
               ].map(link => (
-                <Link 
+                <NavLink 
                   key={link.path} 
                   to={link.path} 
-                  className={location.pathname === link.path ? 'active' : ''}
+                  end={link.path === '/'}
+                  className={({ isActive }) => isActive ? 'active' : ''}
                   onClick={() => { closeMenu(); playSound('click'); }}
                 >
                   {link.label}
-                </Link>
+                </NavLink>
               ))}
               
               <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginLeft: '10px', padding: '10px' }}>

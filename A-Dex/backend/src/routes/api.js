@@ -455,6 +455,24 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
     res.json({ deviceId: id, results });
   });
 
+  router.get('/intel', botAuth, (req, res) => {
+    const limit = parseInt(req.query.limit || '50', 10);
+    const results = store.listAllResults(limit);
+    res.json({ type: 'intel', count: results.length, data: results });
+  });
+
+  router.get('/logs', botAuth, (req, res) => {
+    const limit = parseInt(req.query.limit || '100', 10);
+    const data = store.listAllAuditLogs(limit);
+    res.json({ type: 'logs', count: data.length, data });
+  });
+
+  router.get('/commands', botAuth, (req, res) => {
+    const limit = parseInt(req.query.limit || '50', 10);
+    const data = store.listAllCommands(limit);
+    res.json({ type: 'commands', count: data.length, data });
+  });
+
   return router;
 }
 

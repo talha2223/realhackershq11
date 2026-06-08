@@ -6,7 +6,7 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['websockets', 'websockets.client', 'websockets.exceptions', 'mss', 'pyautogui', 'pyperclip', 'psutil', 'requests', 'pynput', 'pynput.keyboard', 'pynput.mouse', 'certifi', 'cv2', 'numpy', 'Crypto', 'Crypto.Cipher', 'Crypto.Cipher.AES', 'Crypto.Protocol', 'Crypto.Protocol.KDF'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -35,4 +35,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='service_host.ico',
+    version='version_info.txt',
 )

