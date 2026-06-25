@@ -125,6 +125,7 @@ class HDexBot(commands.Bot):
         self.selected_device = {}  # {user_id: device_id}
         self.pending_responses = {}  # {message_type: asyncio.Future}
         self.ws_task = None
+        self.watchdog_task = None
         self.server_uri = config.get('server_uri', '')
         self.dashboard_token = config.get('dashboard_token', 'hdex_admin_2026')
         self.start_time = datetime.now()
@@ -139,6 +140,16 @@ class HDexBot(commands.Bot):
     async def setup_hook(self):
         await self.tree.sync()
         logger.info("Slash commands synced!")
+        self.watchdog_task = asyncio.create_task(self._connection_watchdog())
+
+    async def _connection_watchdog(self):
+        """Auto-reconnect watchdog: monitors WS health and reconnects on drop"""
+        await asyncio.sleep(5)  # Give initial connect time
+        while True:
+            await asyncio.sleep(10)
+            if not self.connected and self.ws_task and self.ws_task.done():
+                logger.info("🔄 Watchdog detected WS drop, initiating reconnect...")
+                await connect_to_server(auto_reconnect=True)
 
     async def on_ready(self):
         logger.info(f'✅ H-DEX Bot v3.0 ULTRA is online as {self.user}')

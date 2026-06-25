@@ -162,7 +162,7 @@ class HDexServerState:
         if DISCORD_WEBHOOK:
             try:
                 import requests
-                requests.post(DISCORD_WEBHOOK, json={"content": text}, timeout=5)
+                await asyncio.to_thread(requests.post, DISCORD_WEBHOOK, json={"content": text}, timeout=5)
             except: pass
             
         # 2. Telegram
@@ -170,7 +170,7 @@ class HDexServerState:
             try:
                 import requests
                 api_url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-                requests.post(api_url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=5)
+                await asyncio.to_thread(requests.post, api_url, json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=5)
             except: pass
 
     def get_stats(self):
