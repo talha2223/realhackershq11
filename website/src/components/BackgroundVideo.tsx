@@ -40,7 +40,7 @@ const BackgroundVideo: React.FC = () => {
         playsInline
         className="background-video"
       >
-        <source src="/assets/backgroud.webm" type="video/webm" />
+        <source src="/assets/background.webm" type="video/webm" />
         Your browser does not support the video tag.
       </video>
       

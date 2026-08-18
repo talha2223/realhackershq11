@@ -5,6 +5,25 @@ const { config } = require('./config');
 
 let db;
 
+const MIGRATIONS = [
+  {
+    version: 1,
+    name: 'init',
+    up() {
+      const schemaPath = path.join(__dirname, '..', 'migrations', 'init.sql');
+      const schema = fs.readFileSync(schemaPath, 'utf8');
+      db.exec(schema);
+    },
+  },
+  {
+    version: 2,
+    name: 'add_metadata_json',
+    up() {
+      db.exec('ALTER TABLE devices ADD COLUMN metadata_json TEXT;');
+    },
+  },
+];
+
 function initDb() {
   if (db) {
     return db;
@@ -15,15 +34,32 @@ function initDb() {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('PRAGMA foreign_keys = ON;');
 
-  const schemaPath = path.join(__dirname, '..', 'migrations', 'init.sql');
-  const schema = fs.readFileSync(schemaPath, 'utf8');
-  db.exec(schema);
+  // Migration tracking table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS _migrations (
+      version INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      applied_at INTEGER NOT NULL
+    );
+  `);
 
-  // Migration: Add metadata_json if missing (for existing databases)
-  try {
-    db.exec('ALTER TABLE devices ADD COLUMN metadata_json TEXT;');
-  } catch (_err) {
-    // Column likely already exists
+  // Apply pending migrations in order
+  const applied = db.prepare('SELECT version FROM _migrations').all().map((r) => r.version);
+  for (const migration of MIGRATIONS) {
+    if (applied.includes(migration.version)) {
+      continue;
+    }
+    db.exec('BEGIN TRANSACTION;');
+    try {
+      migration.up();
+      db.prepare('INSERT INTO _migrations (version, name, applied_at) VALUES (?, ?, ?)')
+        .run(migration.version, migration.name, Date.now());
+      db.exec('COMMIT;');
+    } catch (err) {
+      db.exec('ROLLBACK;');
+      console.error(`Migration ${migration.version} (${migration.name}) failed:`, err);
+      throw err;
+    }
   }
 
   return db;

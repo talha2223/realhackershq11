@@ -10,6 +10,7 @@ const GoogleLogin: React.FC<GoogleLoginProps> = ({ onSuccess }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isFocused, setIsFocused] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleNext = () => {
     if (email) setStep('password');

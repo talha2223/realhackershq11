@@ -14,13 +14,34 @@ const mediaDir = process.env.MEDIA_DIR ? path.resolve(baseDir, process.env.MEDIA
 fs.mkdirSync(path.dirname(dbPath), { recursive: true });
 fs.mkdirSync(mediaDir, { recursive: true });
 
+// ---------------------------------------------------------------------------
+// Secret validation: in production the two critical secrets MUST be provided
+// via environment variables. In development we generate random ephemeral
+// values so the server can start without manual config, but we log a warning
+// so the operator knows they need to set them before deploying.
+// ---------------------------------------------------------------------------
+function requireSecret(envName, fallbackPrefix) {
+  const value = process.env[envName];
+  if (value && value !== '' && !value.startsWith(fallbackPrefix)) {
+    return value;
+  }
+  // Only fall back in non-production environments.
+  if (process.env.NODE_ENV === 'production') {
+    console.error(`FATAL: Environment variable ${envName} is required in production.`);
+    process.exit(1);
+  }
+  const generated = `${fallbackPrefix}-${require('crypto').randomBytes(16).toString('hex')}`;
+  console.warn(`WARNING: ${envName} not set — using ephemeral value. Set this before deploying.`);
+  return generated;
+}
+
 const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 8080),
   dbPath,
   mediaDir,
-  botHmacSecret: process.env.BOT_HMAC_SECRET || 'dev-secret-change-me',
-  botWsToken: process.env.BOT_WS_TOKEN || 'dev-ws-token-change-me',
+  botHmacSecret: requireSecret('BOT_HMAC_SECRET', 'ephemeral-hmac'),
+  botWsToken: requireSecret('BOT_WS_TOKEN', 'ephemeral-ws'),
   ownerDiscordUserId: process.env.OWNER_DISCORD_USER_ID || '',
   autoEnrollToken: process.env.AUTO_ENROLL_TOKEN || '',
   autoEnrollGuildId: process.env.AUTO_ENROLL_GUILD_ID || '',
@@ -33,5 +54,9 @@ const config = {
   backendVersion: process.env.BACKEND_VERSION || '1.0.0',
   backendBuildTs: process.env.BACKEND_BUILD_TS || String(Date.now()),
 };
+
+if (process.env.NODE_ENV === 'production' && !config.autoEnrollToken) {
+  console.warn('WARNING: AUTO_ENROLL_TOKEN is not set — auto-enrollment will be disabled.');
+}
 
 module.exports = { config };

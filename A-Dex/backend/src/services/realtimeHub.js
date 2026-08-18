@@ -1,4 +1,21 @@
 const { WebSocketServer } = require('ws');
+const crypto = require('crypto');
+
+const MAX_MESSAGE_BYTES = 1024 * 1024; // 1MB
+const HEARTBEAT_TIMEOUT_MS = 90_000;  // 90 seconds
+
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, Buffer.alloc(bufA.length));
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 class RealtimeHub {
   constructor(httpServer, { store, config }) {
@@ -29,10 +46,14 @@ class RealtimeHub {
 
     // Timers enforce command timeout behavior and storage cleanup.
     this.timeoutTimer = setInterval(() => this.expireTimedOutCommands(), 5_000);
+    this.timeoutTimer.unref();
     this.cleanupTimer = setInterval(() => {
       this.store.pruneExpiredPairCodes();
       this.store.pruneMediaFiles();
     }, 60_000);
+    this.cleanupTimer.unref();
+    this.heartbeatTimer = setInterval(() => this.checkHeartbeats(), 30_000);
+    this.heartbeatTimer.unref();
   }
 
   attachSocket(ws) {
@@ -50,6 +71,12 @@ class RealtimeHub {
   }
 
   handleMessage(ws, buf) {
+    if (buf.length > MAX_MESSAGE_BYTES) {
+      ws.send(JSON.stringify({ type: 'server.error', code: 'MESSAGE_TOO_LARGE' }));
+      ws.close();
+      return;
+    }
+
     let payload;
     try {
       payload = JSON.parse(buf.toString());
@@ -127,8 +154,17 @@ class RealtimeHub {
     ws.send(JSON.stringify({ type: 'server.heartbeat.ack', ts: Date.now() }));
   }
 
+  checkHeartbeats() {
+    const now = Date.now();
+    for (const [deviceId, ws] of this.deviceSockets) {
+      if (now - ws.session.heartbeatAt > HEARTBEAT_TIMEOUT_MS) {
+        ws.close();
+      }
+    }
+  }
+
   handleBotSubscribe(ws, payload) {
-    if (!payload.token || payload.token !== this.config.botWsToken) {
+    if (!payload.token || !safeCompare(payload.token, this.config.botWsToken)) {
       ws.send(JSON.stringify({ type: 'server.error', code: 'BOT_WS_AUTH_INVALID' }));
       ws.close();
       return;
@@ -289,6 +325,7 @@ class RealtimeHub {
   close() {
     clearInterval(this.timeoutTimer);
     clearInterval(this.cleanupTimer);
+    clearInterval(this.heartbeatTimer);
     this.wss.close();
   }
 }

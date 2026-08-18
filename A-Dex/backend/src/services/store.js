@@ -371,9 +371,10 @@ function createStore(db, runtimeConfig) {
        WHERE id = ?`
     ).run(status === 'success' ? 'completed' : 'failed', errorCode, errorMessage, nowMs(), commandId);
 
+    // Return the original command object directly instead of re-querying.
     return {
       resultId,
-      command: getCommandById(commandId),
+      command,
       result: { status, data, errorCode, errorMessage, mediaId },
     };
   }
@@ -441,6 +442,9 @@ function createStore(db, runtimeConfig) {
     const rows = db.prepare('SELECT id, file_path FROM media_files WHERE created_at < ?').all(cutoff);
 
     for (const row of rows) {
+      // Delete DB row first to avoid orphaned rows on filesystem errors.
+      db.prepare('DELETE FROM media_files WHERE id = ?').run(row.id);
+
       try {
         if (row.file_path && fs.existsSync(row.file_path)) {
           fs.unlinkSync(row.file_path);
@@ -448,8 +452,6 @@ function createStore(db, runtimeConfig) {
       } catch (_err) {
         // Ignore filesystem errors so cleanup can continue for other files.
       }
-
-      db.prepare('DELETE FROM media_files WHERE id = ?').run(row.id);
     }
 
     return rows.length;
@@ -539,6 +541,15 @@ function createStore(db, runtimeConfig) {
     }));
   }
 
+  function isDeviceInGuild(deviceId, guildId) {
+    const row = db.prepare(
+      `SELECT 1 FROM guild_devices WHERE device_id = ? AND guild_id = ?
+       UNION
+       SELECT 1 FROM channel_device_bindings WHERE device_id = ? AND guild_id = ?`
+    ).get(deviceId, guildId, deviceId, guildId);
+    return Boolean(row);
+  }
+
   function listAllDevices() {
     return db
       .prepare(
@@ -589,6 +600,7 @@ function createStore(db, runtimeConfig) {
     listAllAuditLogs,
     listAllCommands,
     listAllResults,
+    isDeviceInGuild,
   };
 }
 

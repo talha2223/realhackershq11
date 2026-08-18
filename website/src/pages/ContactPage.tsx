@@ -1,7 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Mail, MessageSquare, Globe, Send } from 'lucide-react';
 
 const ContactPage: React.FC = () => {
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!subject.trim() || !message.trim()) return;
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 3000);
+  };
+
   return (
     <div className="container" style={{ maxWidth: '1000px', padding: '1rem' }}>
        
@@ -50,10 +61,10 @@ const ContactPage: React.FC = () => {
 
           <div className="card" style={{ padding: '2rem' }}>
              <h2 style={{ marginBottom: '2rem' }}>SEND_TICKET</h2>
-             <form style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <input type="text" placeholder="SUBJECT" style={{ background: '#000', border: '1px solid #222', padding: '1rem', color: '#fff' }} />
-                <textarea placeholder="MESSAGE_DETAILS" rows={6} style={{ background: '#000', border: '1px solid #222', padding: '1rem', color: '#fff', resize: 'none' }} />
-                <button type="button" className="btn" style={{ width: '100%' }}>SUBMIT_ENCRYPTED_MESSAGE <Send size={14} /></button>
+             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                <input type="text" placeholder="SUBJECT" value={subject} onChange={e => setSubject(e.target.value)} style={{ background: '#000', border: '1px solid #222', padding: '1rem', color: '#fff' }} />
+                <textarea placeholder="MESSAGE_DETAILS" rows={6} value={message} onChange={e => setMessage(e.target.value)} style={{ background: '#000', border: '1px solid #222', padding: '1rem', color: '#fff', resize: 'none' }} />
+                <button type="submit" className="btn" style={{ width: '100%' }}>{submitted ? 'TICKET_ENCRYPTED' : 'SUBMIT_ENCRYPTED_MESSAGE'} <Send size={14} /></button>
              </form>
           </div>
 

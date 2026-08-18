@@ -934,7 +934,7 @@ class ADexDiscordClient(discord.Client):
                 session.items = data.get("files") or []
             
             view.rebuild_buttons()
-            await view.message.edit(content=view.render_text(), view=view)
+            await view.message.edit(embed=view.render_embed(), view=view)
 
         @self.tree.command(name="filestat", description="Read metadata of file/folder")
         @app_commands.describe(path="Absolute path")
@@ -1851,7 +1851,7 @@ class ADexDiscordClient(discord.Client):
             channel_id=int(interaction.channel_id),
             session=session,
         )
-        message = await interaction.followup.send(view.render_text(), view=view, wait=True)
+        message = await interaction.followup.send(embed=view.render_embed(), view=view, wait=True)
         view.message = message
 
     async def _send_device_command_wait(

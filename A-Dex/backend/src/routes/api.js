@@ -86,6 +86,27 @@ const DEVICE_COMMANDS = new Set([
 function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAuth }) {
   const router = express.Router();
 
+  // ---------------------------------------------------------------------------
+  // Per-endpoint rate limiters for sensitive unauthenticated routes.
+  // ---------------------------------------------------------------------------
+  const pairingRateMap = new Map();
+  const PAIRING_RATE_WINDOW_MS = 60_000;
+  const PAIRING_RATE_MAX = 10;
+
+  function pairingRateLimiter(req, res, next) {
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    const now = Date.now();
+    const timestamps = pairingRateMap.get(ip) || [];
+    const recent = timestamps.filter((t) => now - t < PAIRING_RATE_WINDOW_MS);
+    if (recent.length >= PAIRING_RATE_MAX) {
+      res.setHeader('Retry-After', Math.ceil(PAIRING_RATE_WINDOW_MS / 1000));
+      return res.status(429).json({ error: 'PAIRING_RATE_LIMITED' });
+    }
+    recent.push(now);
+    pairingRateMap.set(ip, recent);
+    return next();
+  }
+
   const upload = multer({
     storage: multer.diskStorage({
       destination: (_req, _file, cb) => cb(null, config.mediaDir),
@@ -126,7 +147,7 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
     res.json({ success: true, guildId: config.autoEnrollGuildId });
   });
 
-  router.post('/pairing/code', (req, res) => {
+  router.post('/pairing/code', pairingRateLimiter, (req, res) => {
     const schema = z.object({
       deviceId: z.string().min(3),
       deviceToken: z.string().optional(),
@@ -328,8 +349,25 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
   });
 
   router.get('/media/:mediaId', botAuth, (req, res) => {
+    const guildId = req.query.guildId;
+    const discordUserId = req.query.discordUserId;
+
+    if (!guildId || !discordUserId) {
+      return res.status(400).json({ error: 'GUILD_OR_USER_MISSING' });
+    }
+
+    if (!store.ensureGuildAdmin(guildId, discordUserId)) {
+      return res.status(403).json({ error: 'DISCORD_USER_NOT_AUTHORIZED' });
+    }
+
     const row = store.getMediaById(req.params.mediaId);
     if (!row) {
+      return res.status(404).json({ error: 'MEDIA_NOT_FOUND' });
+    }
+
+    // Verify the media's command belongs to a device in the requesting guild.
+    const command = store.getCommandById(row.command_id);
+    if (!command || !store.isDeviceInGuild(command.deviceId, guildId)) {
       return res.status(404).json({ error: 'MEDIA_NOT_FOUND' });
     }
 
@@ -353,8 +391,11 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
   });
 
   router.delete('/admins/:userId', botAuth, (req, res, next) => {
-    req.body = req.body || {};
-    req.body.targetUserId = req.params.userId;
+    const userId = req.params.userId;
+    if (!userId) {
+      return res.status(400).json({ error: 'INVALID_REQUEST' });
+    }
+    req.validatedUserId = userId;
     return next();
   }, guildAdminAuth, (req, res) => {
     const schema = z.object({
@@ -363,7 +404,11 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
       targetUserId: z.string().min(2),
     });
 
-    const parsed = schema.safeParse(req.body || {});
+    const parsed = schema.safeParse({
+      guildId: req.validatedGuildId,
+      actorUserId: req.validatedDiscordUserId,
+      targetUserId: req.validatedUserId,
+    });
     if (!parsed.success) {
       return res.status(400).json({ error: 'INVALID_REQUEST', details: parsed.error.flatten() });
     }
@@ -426,8 +471,9 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
     }
 
     let devices;
-    if (guildId === 'hq-guild' || (config.ownerDiscordUserId && config.ownerDiscordUserId === discordUserId)) {
-      // Owner or HQ console gets everything
+    // Only the configured owner can see all devices across guilds.
+    // The "hq-guild" trick is removed — it was an IDOR vector.
+    if (config.ownerDiscordUserId && config.ownerDiscordUserId === discordUserId) {
       devices = store.listAllDevices();
     } else {
       devices = store.listDevicesForGuild(guildId);
@@ -443,32 +489,62 @@ function createApiRouter({ store, hub, config, botAuth, deviceAuth, guildAdminAu
 
   router.get('/devices/:id/events', botAuth, (req, res) => {
     const { id } = req.params;
-    const limit = parseInt(req.query.limit || '50', 10);
+    const guildId = req.query.guildId;
+    const discordUserId = req.query.discordUserId;
+
+    if (!guildId || !discordUserId) {
+      return res.status(400).json({ error: 'GUILD_OR_USER_MISSING' });
+    }
+
+    if (!store.ensureGuildAdmin(guildId, discordUserId)) {
+      return res.status(403).json({ error: 'DISCORD_USER_NOT_AUTHORIZED' });
+    }
+
+    if (!store.isDeviceInGuild(id, guildId)) {
+      return res.status(404).json({ error: 'DEVICE_NOT_FOUND' });
+    }
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10) || 50, 1), 200);
     const events = store.getEventsForDevice(id, limit);
     res.json({ deviceId: id, events });
   });
 
   router.get('/devices/:id/commands/results', botAuth, (req, res) => {
     const { id } = req.params;
-    const limit = parseInt(req.query.limit || '20', 10);
+    const guildId = req.query.guildId;
+    const discordUserId = req.query.discordUserId;
+
+    if (!guildId || !discordUserId) {
+      return res.status(400).json({ error: 'GUILD_OR_USER_MISSING' });
+    }
+
+    if (!store.ensureGuildAdmin(guildId, discordUserId)) {
+      return res.status(403).json({ error: 'DISCORD_USER_NOT_AUTHORIZED' });
+    }
+
+    if (!store.isDeviceInGuild(id, guildId)) {
+      return res.status(404).json({ error: 'DEVICE_NOT_FOUND' });
+    }
+
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '20', 10) || 20, 1), 100);
     const results = store.getCommandResults(id, limit);
     res.json({ deviceId: id, results });
   });
 
   router.get('/intel', botAuth, (req, res) => {
-    const limit = parseInt(req.query.limit || '50', 10);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10) || 50, 1), 200);
     const results = store.listAllResults(limit);
     res.json({ type: 'intel', count: results.length, data: results });
   });
 
   router.get('/logs', botAuth, (req, res) => {
-    const limit = parseInt(req.query.limit || '100', 10);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '100', 10) || 100, 1), 500);
     const data = store.listAllAuditLogs(limit);
     res.json({ type: 'logs', count: data.length, data });
   });
 
   router.get('/commands', botAuth, (req, res) => {
-    const limit = parseInt(req.query.limit || '50', 10);
+    const limit = Math.min(Math.max(parseInt(req.query.limit || '50', 10) || 50, 1), 200);
     const data = store.listAllCommands(limit);
     res.json({ type: 'commands', count: data.length, data });
   });

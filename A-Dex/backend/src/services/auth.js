@@ -1,10 +1,26 @@
+const crypto = require('crypto');
 const { computeBotSignature } = require('../utils/signature');
+
+// Constant-time string comparison to prevent timing attacks on token brute-force.
+function safeCompare(a, b) {
+  if (typeof a !== 'string' || typeof b !== 'string') {
+    return false;
+  }
+  const bufA = Buffer.from(a, 'utf8');
+  const bufB = Buffer.from(b, 'utf8');
+  if (bufA.length !== bufB.length) {
+    // Still do the comparison to avoid leaking length info.
+    crypto.timingSafeEqual(bufA, Buffer.alloc(bufA.length));
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}
 
 // Bot auth uses signed requests with timestamp to prevent replay.
 function createBotAuthMiddleware(config) {
   return function botAuth(req, res, next) {
     const botToken = req.header('x-adex-bot-token');
-    if (botToken && config.botWsToken && botToken === config.botWsToken) {
+    if (botToken && config.botWsToken && safeCompare(botToken, config.botWsToken)) {
       return next();
     }
 
@@ -29,7 +45,7 @@ function createBotAuthMiddleware(config) {
     const expectedBuffer = Buffer.from(expected);
     const signatureBuffer = Buffer.from(signature);
 
-    if (expectedBuffer.length !== signatureBuffer.length || !require('crypto').timingSafeEqual(expectedBuffer, signatureBuffer)) {
+    if (expectedBuffer.length !== signatureBuffer.length || !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)) {
       return res.status(401).json({ error: 'BOT_AUTH_SIGNATURE_INVALID' });
     }
 
@@ -57,6 +73,12 @@ function createDeviceAuthMiddleware(store) {
   };
 }
 
+// Guild admin check. The caller must provide guildId and discordUserId in the
+// request body. The botAuth middleware above already verified that the request
+// comes from a trusted bot, so we trust the bot's claimed identity.
+// SECURITY: These values MUST come from the bot (server-side), never from a
+// client-side user directly. The bot is responsible for passing the correct
+// identity of the Discord user who invoked the command.
 function requireGuildAdmin(store) {
   return function guildAdmin(req, res, next) {
     const guildId = req.body.guildId || req.query.guildId;
@@ -69,6 +91,10 @@ function requireGuildAdmin(store) {
     if (!store.ensureGuildAdmin(guildId, discordUserId)) {
       return res.status(403).json({ error: 'DISCORD_USER_NOT_AUTHORIZED' });
     }
+
+    // Attach validated values so downstream handlers never re-read from raw body.
+    req.validatedGuildId = guildId;
+    req.validatedDiscordUserId = discordUserId;
 
     return next();
   };

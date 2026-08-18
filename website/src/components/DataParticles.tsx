@@ -12,6 +12,8 @@ const DataParticles: React.FC = () => {
 
     let particles: any[] = [];
     const particleCount = 60;
+    let animationId: number;
+    let cancelled = false;
 
     const resize = () => {
       if (!canvas) return;
@@ -67,7 +69,7 @@ const DataParticles: React.FC = () => {
     };
 
     const animate = () => {
-      if (!ctx || !canvas) return;
+      if (cancelled || !ctx || !canvas) return;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       particles.forEach((p) => {
         p.update();
@@ -91,13 +93,17 @@ const DataParticles: React.FC = () => {
           }
         }
       }
-      requestAnimationFrame(animate);
+      animationId = requestAnimationFrame(animate);
     };
 
     init();
     animate();
 
-    return () => window.removeEventListener('resize', resize);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animationId);
+      window.removeEventListener('resize', resize);
+    };
   }, []);
 
   return (

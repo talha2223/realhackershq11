@@ -25,7 +25,7 @@ const App: React.FC = () => {
       <PhishingProvider>
         <BrowserRouter>
           <Routes>
-            <Route path="/p/:templateId" element={<LivePhishPage />} />
+            <Route path="/p/:templateId" element={<MainLayout><LivePhishPage /></MainLayout>} />
             <Route path="/" element={<MainLayout />}>
               <Route index element={<HomePage />} />
               <Route path="a-dex" element={<ADexPage />} />
